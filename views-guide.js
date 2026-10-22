@@ -2,35 +2,50 @@
    Экран «Гид»: методика, питание, безопасность, библиотека упражнений
    ============================================================================ */
 
-function nutritionData() {
-  const pr = state.profile;
-  const cfg = state.settings.nutri || { activity: 1.75, deficit: 0.2 };
-  const w = num(pr.weight) || 93;
-  const h = num(pr.height) || 183;
-  const age = num(pr.age) || 41;
-  const bmr = 10 * w + 6.25 * h - 5 * age + 5;
-  const tdee = bmr * cfg.activity;
-  const kcal = Math.round((tdee * (1 - cfg.deficit)) / 10) * 10;
-  const protein = Math.round((1.9 * w) / 5) * 5;
-  let fat = Math.round((0.9 * w) / 5) * 5;
-  let carbs = Math.round((kcal - protein * 4 - fat * 9) / 4 / 5) * 5;
-  if (carbs < 100) {
-    fat = Math.max(55, Math.round((kcal - protein * 4 - 100 * 4) / 9 / 5) * 5);
-    carbs = Math.round((kcal - protein * 4 - fat * 9) / 4 / 5) * 5;
-  }
-  return {
-    w: w, h: h, age: age,
-    bmr: Math.round(bmr),
-    tdee: Math.round(tdee),
-    kcal: kcal,
-    protein: protein,
-    fat: fat,
-    carbs: carbs,
-    water: Math.round(w * 0.035 * 10) / 10,
-    loss: Math.round((cfg.deficit * tdee * 7) / 7700 * 100) / 100,
-    activity: cfg.activity,
-    deficit: cfg.deficit
-  };
+function renderDayPlan(kind) {
+  const plan = MEAL_KINDS[kind];
+  return (
+    '<h3>' + esc(plan.label) + '</h3>' +
+    '<p class="hint">' + esc(plan.lead) + '</p>' +
+    '<table class="meals">' +
+      plan.meals.map((m) => '<tr><td>' + esc(m[0]) + '</td><td>' + esc(m[1]) + '</td><td>' + esc(m[2]) + '</td></tr>').join('') +
+    '</table>'
+  );
+}
+
+function renderWeekRotation() {
+  return (
+    '<h3>Меню на неделю</h3>' +
+    '<p class="hint">Меняй источники белка и углеводов, чтобы не надоедало, и держи калории/белок из калькулятора.</p>' +
+    WEEK_ROTATION.map((r) => {
+      const plan = MEAL_KINDS[r.kind];
+      return (
+        '<details class="lib"><summary>' + esc(r.d) + ' · ' + esc(r.label) + '<span>' + esc(plan.label) + '</span></summary>' +
+          '<div class="lib__body">' +
+            '<p class="lib__target">' + esc(r.note) + '</p>' +
+            '<ul><li><b>Белок:</b> ' + esc(r.protein) + '</li><li><b>Углеводы:</b> ' + esc(r.carbs) + '</li></ul>' +
+            '<table class="meals">' + plan.meals.map((m) => '<tr><td>' + esc(m[0]) + '</td><td>' + esc(m[1]) + '</td><td>' + esc(m[2]) + '</td></tr>').join('') + '</table>' +
+          '</div>' +
+        '</details>'
+      );
+    }).join('')
+  );
+}
+
+function renderSupplements() {
+  return (
+    '<h3>Спортивные добавки: время и доза</h3>' +
+    '<p class="hint">Добавки — дополнение к еде, а не замена. Начинай по одной, чтобы понимать, что на тебя влияет.</p>' +
+    SUPPLEMENTS.map((s) => (
+      '<details class="lib"><summary>' + esc(s.name) + '<span>' + esc(s.dose) + '</span></summary>' +
+        '<div class="lib__body">' +
+          '<p class="lib__target"><b>Когда:</b> ' + esc(s.when) + '</p>' +
+          '<p class="lib__target"><b>Зачем:</b> ' + esc(s.why) + '</p>' +
+          '<p class="lib__bad">Осторожно: ' + esc(s.warn) + '</p>' +
+        '</div>' +
+      '</details>'
+    )).join('')
+  );
 }
 
 function renderNutrition() {
@@ -57,7 +72,7 @@ function renderNutrition() {
           '<div><b>' + n.carbs + ' г</b><span>углеводы</span></div>' +
         '</div>' +
       '</div>' +
-      '<p class="hint">Расчёт по формуле Миффлина–Сан Жеора: обмен ' + n.bmr + ' ккал × активность ' + n.activity + ' = ' + n.tdee + ' ккал. Цель — дефицит ' + Math.round(n.deficit * 100) + '%, около ' + String(n.loss).replace('.', ',') + ' кг в неделю.</p>' +
+      '<p class="hint">Расчёт по формуле Миффлина–Сан Жеора: обмен ' + n.bmr + ' ккал × активность ' + String(n.activity).replace('.', ',') + ' = ' + n.tdee + ' ккал. Цель — дефицит ' + Math.round(n.deficit * 100) + '%, около ' + String(n.loss).replace('.', ',') + ' кг в неделю.</p>' +
       '<div class="nutri__controls">' +
         '<div class="field"><span>Активность</span><div class="segs segs--wrap">' +
           act.map(([v, l]) => '<button class="seg' + (Number(n.activity) === Number(v) ? ' is-on' : '') + '" data-act="nutri" data-kind="activity" data-v="' + v + '">' + l + '</button>').join('') +
@@ -71,32 +86,20 @@ function renderNutrition() {
         '<ul>' +
           '<li><b>Белок 1,8–2,2 г/кг</b> — примерно ' + n.protein + ' г в день, 4 приёма по 35–45 г. Это защищает мышцы на дефиците.</li>' +
           '<li><b>Дефицит небольшой</b> — 15–20%. Цель: −0,5–0,7 кг в неделю, к концу цикла около 85–86 кг. Быстрее — потеря мышц и сил на тренировках.</li>' +
-          '<li><b>Углеводы вокруг тренировок</b> — ' + n.carbs + ' г в день. Не убирай их полностью: без гликогена спарринги и интервалы разваливаются.</li>' +
+          '<li><b>Углеводы вокруг тренировок</b> — ' + n.carbs + ' г в день. Не убирай их полностью: без гликогена силовые и интервалы разваливаются.</li>' +
           '<li><b>Овощи 400–500 г и клетчатка 30–35 г</b> — сытость и кишечник.</li>' +
-          '<li><b>Вода ' + n.water + ' л</b> + электролиты, если много потеешь на тренировке.</li>' +
+          '<li><b>Вода ' + String(n.water).replace('.', ',') + ' л</b> + электролиты, если много потеешь на тренировке.</li>' +
           '<li><b>Алкоголь</b> — максимум 1–2 порции в неделю, лучше 0: он бьёт по сну и восстановлению.</li>' +
         '</ul>' +
       '</div>' +
-      '<h3>Пример дня под ' + n.kcal + ' ккал</h3>' +
-      '<table class="meals">' +
-        '<tr><td>' + state.times.morning + '</td><td>До тренировки</td><td>Вода 300–500 мл. Если голодно — ½ банана или 150 мл кефира. Кофе 100–150 мг (не позже 14:00)</td></tr>' +
-        '<tr><td>07:30</td><td>Завтрак</td><td>3 яйца + 60 г овсянки + 100 г ягод + 200 мл кефира — ≈40 г белка</td></tr>' +
-        '<tr><td>12:00</td><td>Обед</td><td>180 г курицы/рыбы + 200 г риса или картофеля + 250 г овощей + 1 ст. л. масла</td></tr>' +
-        '<tr><td>16:00</td><td>Перекус</td><td>200 г творога 5% + фрукт + 20 г орехов</td></tr>' +
-        '<tr><td>19:30</td><td>Ужин (за 1,5–2 ч до вечера)</td><td>150 г рыбы/курицы + 150 г гречки/пасты + овощи. Без жирного и острого</td></tr>' +
-        '<tr><td>22:00</td><td>После вечерней сессии</td><td>30 г протеина или 300 мл кефира + 100 г творога + банан</td></tr>' +
-      '</table>' +
-      '<p class="hint">Порции — ориентир. Подгоняй так, чтобы вес шёл вниз на 0,5–0,7 кг в неделю, а на тренировках оставались силы. Плато 2+ недели — минус 100–150 ккал или +1500 шагов в день.</p>' +
-      '<h3>Спортивные добавки — что имеет смысл</h3>' +
-      '<ul class="supps">' +
-        '<li><b>Креатин моногидрат 5 г/день</b> — ежедневно, в любое время. Помогает силе и объёму. При проблемах с почками — сначала врач и креатинин.</li>' +
-        '<li><b>Сывороточный протеин 25–40 г</b> — только если не добираешь белок едой. Это не «химия», а удобный белок.</li>' +
-        '<li><b>Витамин D3 1000–2000 МЕ</b> — по анализу 25(OH)D. В средней полосе зимой почти всегда низкий.</li>' +
-        '<li><b>Омега-3 (EPA+DHA) 1–2 г/день</b> — с едой, для сердца и суставов.</li>' +
-        '<li><b>Кофеин 100–200 мг</b> за 30–40 мин до утренней тренировки. Не позже 14:00, иначе страдает сон.</li>' +
-        '<li><b>Магний глицинат 200–400 мг вечером</b> — если судороги или плохой сон. Не обязателен.</li>' +
-        '<li><b>Электролиты</b> — при потерях пота больше 1 л (интенсивная тренировка, жара).</li>' +
-      '</ul>' +
+      '<h3>Питание на каждый день</h3>' +
+      '<p class="hint">Схема привязана к двум тренировкам в ' + state.times.morning + ' и ' + state.times.evening + '. Порции — ориентир; подгоняй по весу и самочувствию. Плато 2+ недели — минус 100–150 ккал или +1500 шагов в день.</p>' +
+      renderDayPlan('strength') +
+      renderDayPlan('cardio') +
+      renderDayPlan('light') +
+      renderWeekRotation() +
+      renderSupplements() +
+      '<p class="hint">При гипертонии, болезнях почек или печени и приёме лекарств согласуй добавки с врачом. Кофеин и предтреники могут повышать давление.</p>' +
       '<p class="hint"><b>Не нужно:</b> «тестостероновые бустеры», жиросжигатели, BCAA при достаточном белке, предтреники с мегадозами. Экономия денег и печени.</p>' +
     '</div>'
   );

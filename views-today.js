@@ -159,6 +159,41 @@ function renderDailyWeight() {
   );
 }
 
+function renderNutritionToday() {
+  const n = nutritionData();
+  const kind = dayKindFor(ui.date);
+  const plan = MEAL_KINDS[kind];
+  const isToday = ui.date === todayISO();
+  const meals = plan.meals.map((m) =>
+    '<tr><td>' + esc(m[0]) + '</td><td>' + esc(m[1]) + '</td><td>' + esc(m[2]) + '</td></tr>'
+  ).join('');
+  const supps = SUPPLEMENTS.map((s) =>
+    '<li><b>' + esc(s.name) + '</b> · ' + esc(s.dose) + '<span>' + esc(s.when) + '</span></li>'
+  ).join('');
+  return (
+    '<section class="card nutri-today">' +
+      '<div class="card__head"><h2>' + (isToday ? 'Питание сегодня' : 'Питание на этот день') + '</h2><span class="kicker">' + esc(plan.label) + '</span></div>' +
+      '<div class="nutri__macros nutri-today__macros">' +
+        '<div><b>' + n.kcal + '</b><span>ккал</span></div>' +
+        '<div><b>' + n.protein + ' г</b><span>белок</span></div>' +
+        '<div><b>' + n.fat + ' г</b><span>жиры</span></div>' +
+        '<div><b>' + n.carbs + ' г</b><span>углеводы</span></div>' +
+      '</div>' +
+      '<p class="nutri-today__lead">' + esc(plan.lead) + ' Вода — ' + String(n.water).replace('.', ',') + ' л.</p>' +
+      '<details class="lib nutri-more">' +
+        '<summary>Меню и добавки по времени<span>' + plan.meals.length + ' приёмов</span></summary>' +
+        '<div class="lib__body">' +
+          '<table class="meals">' + meals + '</table>' +
+          '<h4>Добавки</h4>' +
+          '<ul class="supps supps--today">' + supps + '</ul>' +
+          '<p class="hint">Дозировки и предостережения — в «Гиде». Начинай добавки по одной, особенно кофеин и креатин.</p>' +
+          '<button class="btn btn--ghost btn--small nutri-today__link" data-tab="guide">Меню на неделю и разбор добавок →</button>' +
+        '</div>' +
+      '</details>' +
+    '</section>'
+  );
+}
+
 function renderToday() {
   const plan = sessionsFor(ui.date);
   const info = plan.info;
@@ -198,6 +233,7 @@ function renderToday() {
     lowReady +
     (isToday ? renderReadiness() : '') +
     (isToday ? renderDailyWeight() : '') +
+    renderNutritionToday() +
     '<div class="focus"><span>Фокус недели</span>' + esc(meta.focus) + '</div>' +
     renderSessionCard(plan.morning, ui.date, 'morning', logM) +
     renderSessionCard(plan.evening, ui.date, 'evening', logE) +
