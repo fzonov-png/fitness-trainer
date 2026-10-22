@@ -70,18 +70,20 @@ function addWeight() {
     return;
   }
   const date = todayISO();
+  const bmi = calcBMI(kg, state.profile.height);
   const existing = (state.weights || []).filter((x) => x.date === date)[0];
   if (existing) {
     existing.kg = kg;
+    existing.bmi = bmi;
     if (waist) existing.waist = waist;
   } else {
-    state.weights.push({ date: date, kg: kg, waist: waist || null });
+    state.weights.push({ date: date, kg: kg, waist: waist || null, bmi: bmi });
   }
   state.profile.weight = kg;
   if (waist) state.profile.waist = waist;
   save();
   render();
-  toast('Замер сохранён');
+  toast('Вес ' + String(kg).replace('.', ',') + ' кг · ИМТ ' + fmtBMI(bmi));
 }
 
 function saveTest() {
@@ -277,6 +279,11 @@ document.addEventListener('input', function (e) {
   const el = e.target;
   if (el.id === 'lib-search') {
     filterLibrary(el.value);
+    return;
+  }
+  if (el.id === 'w-kg') {
+    const live = document.getElementById('bmi-live');
+    if (live) live.innerHTML = bmiMarkup(el.value, state.profile.height);
     return;
   }
   if (el.hasAttribute('data-snote')) {

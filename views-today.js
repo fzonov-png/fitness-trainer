@@ -132,6 +132,33 @@ function renderReadiness() {
   );
 }
 
+function renderGreeting() {
+  const name = String(state.profile.name || 'Федор').trim() || 'Федор';
+  return (
+    '<div class="hello">' +
+      '<h1>Привет, ' + esc(name) + '!!!</h1>' +
+      '<p>Две тренировки в день: утро — работа, вечер — восстановление.</p>' +
+    '</div>'
+  );
+}
+
+function renderDailyWeight() {
+  const entry = todayWeight();
+  const kg = entry ? entry.kg : '';
+  const height = num(state.profile.height) || 183;
+  return (
+    '<section class="card weigh">' +
+      '<div class="card__head"><h2>Вес сегодня</h2><span class="kicker">утром, натощак</span></div>' +
+      '<div class="weigh__row">' +
+        '<label class="num"><input id="w-kg" type="number" inputmode="decimal" min="40" max="250" step="0.1" placeholder="кг" aria-label="вес сегодня, кг" value="' + esc(kg) + '"></label>' +
+        '<button class="btn btn--primary" data-act="weight-add">' + (entry ? 'Обновить' : 'Записать') + '</button>' +
+      '</div>' +
+      '<div class="weigh__bmi" id="bmi-live">' + bmiMarkup(kg, height) + '</div>' +
+      '<p class="hint">Записывай вес каждый день. ИМТ считается автоматически по росту ' + height + ' см; смотри на среднюю за неделю, а не на одну цифру — вода даёт ±1–2 кг.</p>' +
+    '</section>'
+  );
+}
+
 function renderToday() {
   const plan = sessionsFor(ui.date);
   const info = plan.info;
@@ -153,6 +180,7 @@ function renderToday() {
     : '';
 
   return (
+    renderGreeting() +
     '<div class="daybar">' +
       '<button class="iconbtn" data-act="day-prev" aria-label="Предыдущий день">‹</button>' +
       '<div class="daybar__main">' +
@@ -169,6 +197,7 @@ function renderToday() {
     banner +
     lowReady +
     (isToday ? renderReadiness() : '') +
+    (isToday ? renderDailyWeight() : '') +
     '<div class="focus"><span>Фокус недели</span>' + esc(meta.focus) + '</div>' +
     renderSessionCard(plan.morning, ui.date, 'morning', logM) +
     renderSessionCard(plan.evening, ui.date, 'evening', logE) +

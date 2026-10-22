@@ -1,5 +1,5 @@
 /* ============================================================================
-   ТРЕНЕР 41 — состояние, расчёты, таймер, служебные функции
+   Fitness Trainer — состояние, расчёты, таймер, служебные функции
    ============================================================================ */
 'use strict';
 
@@ -44,7 +44,7 @@ const fmtShort = (s) => {
 function defaults() {
   return {
     v: 1,
-    profile: { name: '', height: 183, weight: 93, age: 41 },
+    profile: { name: 'Федор', height: 183, weight: 93, age: 41 },
     startDate: iso(mondayOf(new Date())),
     cycle: 1,
     times: { morning: '05:30', evening: '21:20' },
@@ -66,6 +66,7 @@ function loadState() {
     const s = JSON.parse(raw);
     const merged = Object.assign(base, s);
     merged.profile = Object.assign(defaults().profile, s.profile || {});
+    if (!merged.profile.name || !String(merged.profile.name).trim()) merged.profile.name = 'Федор';
     merged.times = Object.assign({ morning: '05:30', evening: '21:20' }, s.times || {});
     merged.settings = Object.assign(defaults().settings, s.settings || {});
     merged.settings.nutri = Object.assign({ activity: 1.75, deficit: 0.2 }, (s.settings || {}).nutri || {});
@@ -254,6 +255,47 @@ function latestWeights(n) {
   return n ? arr.slice(-n) : arr;
 }
 
+/* --------------------------------- ИМТ ------------------------------------ */
+
+function calcBMI(kg, heightCm) {
+  const w = num(kg);
+  const h = num(heightCm);
+  if (!w || !h) return null;
+  const m = h / 100;
+  const bmi = w / (m * m);
+  if (!isFinite(bmi) || bmi <= 0) return null;
+  return Math.round(bmi * 10) / 10;
+}
+
+function bmiCategory(bmi) {
+  const v = num(bmi);
+  if (v == null) return { label: '', tone: 'none' };
+  if (v < 18.5) return { label: 'недостаточная масса', tone: 'low' };
+  if (v < 25) return { label: 'норма', tone: 'ok' };
+  if (v < 30) return { label: 'избыточная масса', tone: 'warn' };
+  if (v < 35) return { label: 'ожирение I', tone: 'bad' };
+  if (v < 40) return { label: 'ожирение II', tone: 'bad' };
+  return { label: 'ожирение III', tone: 'bad' };
+}
+
+function fmtBMI(bmi) {
+  return bmi == null ? '—' : String(bmi).replace('.', ',');
+}
+
+function bmiMarkup(kg, heightCm) {
+  const bmi = calcBMI(kg, heightCm);
+  if (bmi == null) {
+    return '<span class="bmi bmi--none">Введи вес — ИМТ посчитается сразу</span>';
+  }
+  const c = bmiCategory(bmi);
+  return '<span class="bmi bmi--' + c.tone + '">ИМТ <b>' + fmtBMI(bmi) + '</b> · ' + c.label + '</span>';
+}
+
+function todayWeight() {
+  const d = todayISO();
+  return (state.weights || []).find((x) => x.date === d) || null;
+}
+
 /* ------------------------------- Готовность -------------------------------- */
 
 function readinessAdvice(r) {
@@ -416,7 +458,7 @@ function exportData() {
   const blob = new Blob([JSON.stringify(state, null, 2)], { type: 'application/json' });
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
-  a.download = 'trainer41-backup-' + todayISO() + '.json';
+  a.download = 'fitness-trainer-backup-' + todayISO() + '.json';
   document.body.appendChild(a);
   a.click();
   setTimeout(() => {

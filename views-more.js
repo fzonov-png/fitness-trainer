@@ -126,20 +126,22 @@ function timeToSec(v) {
 function renderProgress() {
   const weights = latestWeights();
   const lastW = weights[weights.length - 1];
-  const firstW = weights[0];
   const stats = overallStats();
   const tests = state.tests.slice().sort((a, b) => String(a.date).localeCompare(String(b.date)));
   const lastT = tests[tests.length - 1];
   const prevT = tests[tests.length - 2];
   const points = weights.slice(-14).map((x) => ({ y: Number(x.kg), label: fmtShort(x.date) }));
-  const delta = lastW && firstW && weights.length > 1 ? Math.round((lastW.kg - firstW.kg) * 10) / 10 : null;
+  const lastBMI = lastW ? calcBMI(lastW.kg, state.profile.height) : null;
+  const lastCat = bmiCategory(lastBMI);
+  const todayW = todayWeight();
+  const hist = weights.slice(-7).reverse();
   const waistLast = weights.filter((x) => x.waist).slice(-1)[0];
   const waistFirst = weights.filter((x) => x.waist)[0];
   const waistDelta = waistLast && waistFirst && waistLast !== waistFirst ? Math.round((waistLast.waist - waistFirst.waist) * 10) / 10 : null;
 
   return (
     '<div class="tiles">' +
-      '<div class="tile"><span>Вес</span><b>' + (lastW ? lastW.kg + ' <small>кг</small>' : '—') + '</b><i>' + (delta == null ? 'нет динамики' : (delta > 0 ? '+' : '') + delta + ' кг за цикл') + '</i></div>' +
+      '<div class="tile"><span>Вес</span><b>' + (lastW ? lastW.kg + ' <small>кг</small>' : '—') + '</b><i>' + (lastBMI != null ? 'ИМТ ' + fmtBMI(lastBMI) + ' · ' + lastCat.label : 'нет замеров') + '</i></div>' +
       '<div class="tile"><span>Талия</span><b>' + (waistLast ? waistLast.waist + ' <small>см</small>' : '—') + '</b><i>' + (waistDelta == null ? 'добавь замер' : (waistDelta > 0 ? '+' : '') + waistDelta + ' см') + '</i></div>' +
       '<div class="tile"><span>Тренировки</span><b>' + stats.done + '<small>/' + stats.planned + '</small></b><i>' + stats.pct + '% плана</i></div>' +
       '<div class="tile"><span>Гребля</span><b>' + (stats.km ? Math.round(stats.km * 10) / 10 : 0) + ' <small>км</small></b><i>всего в дневнике</i></div>' +
@@ -151,11 +153,22 @@ function renderProgress() {
       '<div class="card__head"><h2>Вес и талия</h2><span class="kicker">утром, натощак</span></div>' +
       lineChart(points, 'кг') +
       '<div class="rowform">' +
-        '<label class="num"><input id="w-kg" type="number" inputmode="decimal" min="40" max="250" step="0.1" placeholder="вес, кг" aria-label="вес, кг"></label>' +
-        '<label class="num"><input id="w-waist" type="number" inputmode="decimal" min="50" max="200" step="0.5" placeholder="талия, см" aria-label="талия, см"></label>' +
-        '<button class="btn btn--primary" data-act="weight-add">Записать</button>' +
+        '<label class="num"><input id="w-kg" type="number" inputmode="decimal" min="40" max="250" step="0.1" placeholder="вес, кг" aria-label="вес, кг" value="' + (todayW ? esc(todayW.kg) : '') + '"></label>' +
+        '<label class="num"><input id="w-waist" type="number" inputmode="decimal" min="50" max="200" step="0.5" placeholder="талия, см" aria-label="талия, см" value="' + (todayW && todayW.waist ? esc(todayW.waist) : '') + '"></label>' +
+        '<button class="btn btn--primary" data-act="weight-add">' + (todayW ? 'Обновить' : 'Записать') + '</button>' +
       '</div>' +
-      '<p class="hint">Взвешивайся 3 раза в неделю и смотри на среднюю. Вес может скакать на 1–2 кг из-за воды — это нормально.</p>' +
+      '<div class="weigh__bmi" id="bmi-live">' + bmiMarkup(todayW ? todayW.kg : '', state.profile.height) + '</div>' +
+      '<p class="hint">Взвешивайся каждый день, утром натощак, после туалета. Записывай даже небольшие колебания: важна средняя за неделю, а не одна цифра. Вес может скакать на 1–2 кг из-за воды и соли — это нормально.</p>' +
+      (hist.length
+        ? '<table class="tests weight-hist"><thead><tr><th>Дата</th><th>Вес</th><th>ИМТ</th></tr></thead><tbody>' +
+          hist.map((x) => {
+            const b = x.bmi != null ? x.bmi : calcBMI(x.kg, state.profile.height);
+            const c = bmiCategory(b);
+            return '<tr><td>' + fmtDate(x.date) + '</td><td>' + String(x.kg).replace('.', ',') + ' кг</td><td><span class="bmi bmi--' + c.tone + '">' + fmtBMI(b) + '</span></td></tr>';
+          }).join('') +
+          '</tbody></table>' +
+          '<p class="hint">ИМТ = вес / рост². Это ориентир, а не диагноз: у тренированного человека с широкой костью он может завышать риск. Смотри вместе с талией и самочувствием.</p>'
+        : '<p class="hint">ИМТ = вес / рост². После первого взвешивания здесь появится история с ИМТ для каждой записи.</p>') +
     '</section>' +
 
     '<section class="card">' +
@@ -210,6 +223,6 @@ function renderProgress() {
         '<p class="hint">Данные живут в этом браузере (localStorage). Раз в месяц делай экспорт — это резервная копия. При смене телефона перенеси JSON через импорт.</p>' +
       '</div>' +
     '</section>' +
-    '<p class="disclaimer">Программа — тренировочный план, а не медицинская рекомендация. При 41 годе и ИМТ 27,8 раз в год: давление, липиды, глюкоза/HbA1c, креатинин, витамин D. При боли или сомнениях — к врачу.</p>'
+    '<p class="disclaimer">Программа — тренировочный план, а не медицинская рекомендация. При 41 годе и ИМТ ≥ 27 раз в год: давление, липиды, глюкоза/HbA1c, креатинин, витамин D. При боли или сомнениях — к врачу.</p>'
   );
 }
