@@ -1,5 +1,5 @@
 /* Офлайн-кеш приложения. После обновления файлов поменяй версию CACHE. */
-const CACHE = 't41-v8';
+const CACHE = 't41-v9';
 const ASSETS = [
   './',
   './index.html',
@@ -19,7 +19,10 @@ const ASSETS = [
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
-    caches.open(CACHE).then((cache) => cache.addAll(ASSETS)).then(() => self.skipWaiting())
+    caches.open(CACHE)
+      // cache: 'reload' — не брать старые файлы из HTTP-кеша при обновлении версии.
+      .then((cache) => cache.addAll(ASSETS.map((url) => new Request(new URL(url, self.location).href, { cache: 'reload' }))))
+      .then(() => self.skipWaiting())
   );
 });
 
