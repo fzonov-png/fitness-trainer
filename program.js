@@ -59,8 +59,9 @@
 
   const P = {
     rowZ2:       [24, 25, 26, 20, 25, 26, 28, 20, 26, 28, 28, 20],
-    rowTempo:    [30, 33, 36, 22, 34, 36, 38, 24, 38, 40, 42, 24],
-    intSets:     [5, 5, 6, 4, 6, 6, 7, 4, 6, 7, 7, 4],
+    rowTempo:    [20, 22, 24, 20, 22, 24, 26, 20, 24, 26, 28, 20],
+    intSets:     [7, 7, 8, 7, 8, 8, 9, 7, 9, 9, 9, 7],
+    shortSets:   [10, 11, 12, 10, 11, 12, 14, 10, 12, 14, 15, 10],
     intMin:      [2, 2, 2, 2, 2, 2, 2, 1.5, 2, 2, 2, 1.5],
     mainSets:    [3, 3, 4, 2, 3, 4, 4, 2, 4, 4, 5, 2],
     secSets:     [2, 3, 3, 1, 3, 3, 3, 1, 3, 3, 3, 1],
@@ -113,13 +114,13 @@
       harder: 'Добавь 5 выпадов с ротацией и 10 махов ногами'
     },
     'mobility-hips': {
-      name: 'Мобильность таза и грудного отдела',
+      name: 'Мобильность тазобедренных суставов',
       group: 'Мобильность',
       eq: 'Коврик',
-      target: 'Свобода тазобедренного сустава для ударов и глубоких стоек',
-      cues: ['90/90: 8 переключений', 'Выпад с ротацией: 6/сторону', 'Кошка-корова: 8', 'Глубокий присед с покачиванием: 60 с'],
+      target: 'Свобода таза для шпагата, ударов и глубоких стоек',
+      cues: ['90/90: 8 переключений', 'Выпад с ротацией: 6/сторону', 'Круги бедром: 8/сторону', 'Глубокий присед с покачиванием: 60 с'],
       mistakes: ['Резкие рывки в конце диапазона', 'Задерживать дыхание'],
-      easier: 'Только 90/90 и кошка-корова по 8 раз',
+      easier: 'Только 90/90 и глубокий присед по 30 с',
       harder: 'Добавь 30 с удержания в глубоком приседе и 8 боковых выпадов'
     },
     'cat-cow': {
@@ -809,487 +810,543 @@
 
   /* ---------------------------- Тренировки ------------------------------ */
 
-  // Утро: 5:30. Аэробика или сила; вечер — растяжка/восстановление.
+  // Новый формат:
+  // утро (Пн–Сб) — только гребной тренажёр, 30–40 минут;
+  // вечер Пн/Ср/Пт — только шпагат и мобильность тазобедренных суставов;
+  // вечер Вт/Чт/Сб — силовая 60–90 минут; воскресенье — полный выходной.
 
-  function mondayAM(w) {
-    const min = P.rowZ2[w - 1];
-    const h = P.coreHold[w - 1];
+  function isDeload(w) {
+    return ((w - 1) % 4) + 1 === 4;
+  }
+
+  function weekInBlock(w) {
+    return ((w - 1) % 4) + 1;
+  }
+
+  function rowEasy(min, note) {
+    return it('row-easy', min + ' мин', { minutes: true, note: note });
+  }
+
+  function testBlock(items) {
+    return items.length ? [{ title: 'Тест', items: items }] : [];
+  }
+
+  function strengthWarmup(extra) {
     return {
-      id: 'mon-am', slot: 'morning', type: 'row', emoji: '🚣',
-      title: 'Гребля Z2 + кор',
-      subtitle: 'Аэробная база · жиросжигание',
-      duration: Math.max(40, min + 17),
-      rpe: '5–6',
-      blocks: [
-        { title: 'Разминка', items: [warmupRow()] },
-        { title: 'Основная работа', items: [
-          it('row-z2', min + ' мин', {
-            minutes: true, meters: true,
-            note: 'Пульс 130–145, темп 20–22 гребка/мин. Можешь говорить короткими фразами'
-          })
-        ] },
-        bwBlock(w, 1),
-        { title: 'Кор и осанка', items: [
-          it('core-plank', '2×' + h + ' с', { note: 'Таз нейтрально, дыхание ровное' }),
-          it('core-deadbug', '2×8/сторону'),
-          it('core-side', '2×' + Math.round(h * 0.7) + ' с/сторону')
-        ] },
-        { title: 'Мобильность', items: [
-          it('mobility-hips', '3 мин', { minutes: true, note: '90/90, выпад с ротацией, глубокий присед' })
-        ] }
-      ],
-      note: 'Лимит утра — 45 минут. Утром после сна не делаем тяжёлых наклонов с весом: сначала мобильность, потом гребля. Вечером — восстановление, поэтому утро не должно выматывать.'
+      title: 'Разминка',
+      items: [
+        it('row-easy', '5 мин', { minutes: true, note: 'Спокойная гребля, пульс 110–130. Затем суставная разминка' }),
+        it('scap-pull', '2×8'),
+        it('world-stretch', '4/сторону')
+      ].concat(extra || [])
     };
   }
 
-  function tuesdayAM(w, meta) {
-    // Утренняя сессия — не больше 45 минут: не больше 4 подходов в базовых.
-    const s = Math.min(P.mainSets[w - 1], 4);
-    const sec = Math.min(P.secSets[w - 1], 3);
-    const rowSets = Math.min(sec + 1, 3);
+  /* ------------------------------- Утро ---------------------------------- */
+
+  function mondayAM(w) {
+    const min = P.rowZ2[w - 1];
+    return {
+      id: 'mon-am', slot: 'morning', type: 'row', emoji: '🚣',
+      title: 'Гребля Z2',
+      subtitle: 'Ровная аэробная база',
+      duration: 10 + min,
+      rpe: '5–6',
+      blocks: [
+        { title: 'Разминка', items: [
+          rowEasy(6, '2 мин совсем легко, затем 4×20 с ускорения. Всё на гребном тренажёре')
+        ] },
+        { title: 'Основная работа', items: [
+          it('row-z2', min + ' мин', {
+            minutes: true, meters: true,
+            note: 'Пульс 130–145, темп 20–22 гребка/мин. Ровно, без рывков; говорить короткими фразами'
+          })
+        ] },
+        { title: 'Заминка', items: [
+          rowEasy(4, 'Пульс вниз, дыхание носом. Не останавливайся резко')
+        ] }
+      ],
+      note: 'Утро — только гребля, 30–40 минут. Прогресс: та же дистанция с меньшим пульсом или та же пульсовая зона с большей дистанцией. Записывай минуты и метры.'
+    };
+  }
+
+  function tuesdayAM(w) {
+    const sets = P.intSets[w - 1];
+    return {
+      id: 'tue-am', slot: 'morning', type: 'row', emoji: '💥',
+      title: 'Гребля: интервалы',
+      subtitle: '2 минуты работа / 1 минута легко',
+      duration: 10 + sets * 3,
+      rpe: '7–8',
+      blocks: [
+        { title: 'Разминка', items: [
+          rowEasy(6, '2 мин легко, затем 4×20 с ускорения. Пульс не выше 140')
+        ] },
+        { title: 'Интервалы', items: [
+          it('row-int', sets + '×(2 мин RPE 8 / 1 мин легко)', {
+            minutes: true, meters: true,
+            note: 'Рабочий отрезок — ровный темп, не спринт. Отдых — очень лёгкая гребля, темп 16–18'
+          })
+        ] },
+        { title: 'Заминка', items: [
+          rowEasy(4, 'Пульс вниз, дыхание носом')
+        ] }
+      ],
+      note: 'Утро — только гребля, 30–40 минут. Прогресс: сначала добавляй по одному отрезку, затем ускоряй темп на 1–2 с/500 м при той же технике.'
+    };
+  }
+
+  function wednesdayAM(w, meta) {
+    if (meta.test) {
+      return {
+        id: 'wed-am', slot: 'morning', type: 'row', emoji: '⏱️',
+        title: 'Тест 500 м',
+        subtitle: 'Контроль прогресса',
+        duration: 30,
+        rpe: '8–9',
+        blocks: [
+          { title: 'Разминка', items: [
+            rowEasy(8, 'Очень легко, темп 18–20, затем 3 ускорения по 20 с')
+          ] },
+          { title: 'Тест', items: [
+            it('row-test', '500 м', {
+              minutes: true, meters: true,
+              note: 'Максимально ровно, без срыва техники. Время запиши в «Прогресс → Тесты»'
+            })
+          ] },
+          { title: 'Заминка', items: [
+            rowEasy(20, 'Очень легко, пульс вниз, дыхание носом')
+          ] }
+        ],
+        note: 'Тест 500 м — в недели 1, 6 и 12. Не разгоняйся в первые 100 м: лучший результат даёт ровный темп.'
+      };
+    }
+    const min = P.rowTempo[w - 1];
+    return {
+      id: 'wed-am', slot: 'morning', type: 'row', emoji: '🔥',
+      title: 'Гребля: темповая работа',
+      subtitle: 'Порог, но без отказа',
+      duration: 10 + min,
+      rpe: '6–7',
+      blocks: [
+        { title: 'Разминка', items: [
+          rowEasy(6, 'Легко, темп 18–20, затем 3 ускорения по 20 с')
+        ] },
+        { title: 'Основная работа', items: [
+          it('row-tempo', min + ' мин', {
+            minutes: true, meters: true,
+            note: 'Пульс 150–165, темп ровный. Если пульс выше — сбавь темп, а не амплитуду'
+          })
+        ] },
+        { title: 'Заминка', items: [
+          rowEasy(4, 'Пульс вниз, дыхание носом')
+        ] }
+      ],
+      note: 'Утро — только гребля, 30–40 минут. Прогресс: +1–2 минуты к рабочему отрезку или −1–2 с/500 м при том же пульсе.'
+    };
+  }
+
+  function thursdayAM(w) {
+    const min = P.rowZ2[w - 1];
+    return {
+      id: 'thu-am', slot: 'morning', type: 'row', emoji: '🚣',
+      title: 'Гребля: ступенчатый темп',
+      subtitle: 'Смена темпа без потери техники',
+      duration: 10 + min,
+      rpe: '5–6',
+      blocks: [
+        { title: 'Разминка', items: [
+          rowEasy(6, 'Легко, темп 18–20, затем 4×20 с ускорения')
+        ] },
+        { title: 'Основная работа', items: [
+          it('row-z2', min + ' мин', {
+            minutes: true, meters: true,
+            note: 'Разбей на 4 отрезка: темп 18 → 20 → 22 → 20. Пульс 130–145, спина нейтральная'
+          })
+        ] },
+        { title: 'Заминка', items: [
+          rowEasy(4, 'Пульс вниз, дыхание носом')
+        ] }
+      ],
+      note: 'Утро — только гребля, 30–40 минут. Ступенчатый темп учит держать технику при усталости — это переносится на раунды и спарринги.'
+    };
+  }
+
+  function fridayAM(w) {
+    const sets = P.shortSets[w - 1];
+    return {
+      id: 'fri-am', slot: 'morning', type: 'row', emoji: '⚡',
+      title: 'Гребля: короткие интервалы',
+      subtitle: '1 минута работа / 1 минута легко',
+      duration: 10 + sets * 2,
+      rpe: '7–8',
+      blocks: [
+        { title: 'Разминка', items: [
+          rowEasy(6, 'Легко, темп 18–20, затем 4×20 с ускорения')
+        ] },
+        { title: 'Интервалы', items: [
+          it('row-int', sets + '×(1 мин RPE 8–9 / 1 мин легко)', {
+            minutes: true, meters: true,
+            note: 'Короткие отрезки — мощно, но технично. Отдых активный, не останавливайся'
+          })
+        ] },
+        { title: 'Заминка', items: [
+          rowEasy(4, 'Пульс вниз, дыхание носом')
+        ] }
+      ],
+      note: 'Утро — только гребля, 30–40 минут. Прогресс: добавляй отрезки до 15, затем ускоряй темп. Следи, чтобы последний отрезок был не быстрее первого.'
+    };
+  }
+
+  function saturdayAM(w) {
+    const min = P.rowZ2[w - 1] + 2;
+    return {
+      id: 'sat-am', slot: 'morning', type: 'row', emoji: '🌿',
+      title: 'Длинная гребля Z2',
+      subtitle: 'Спокойная выносливость',
+      duration: 10 + min,
+      rpe: '5–6',
+      blocks: [
+        { title: 'Разминка', items: [
+          rowEasy(6, 'Очень легко, темп 18–20, затем 3 ускорения по 20 с')
+        ] },
+        { title: 'Основная работа', items: [
+          it('row-z2', min + ' мин', {
+            minutes: true, meters: true,
+            note: 'Пульс 130–145, темп 20–22. Ровная работа на выносливость, без ускорений'
+          })
+        ] },
+        { title: 'Заминка', items: [
+          rowEasy(4, 'Пульс вниз, дыхание носом')
+        ] }
+      ],
+      note: 'Утро — только гребля, 30–40 минут. Это самый длинный аэробный день недели. Прогресс — по метрам при том же пульсе.'
+    };
+  }
+
+  function sundayAM() {
+    return {
+      id: 'sun-am', slot: 'morning', type: 'rest', emoji: '🌙',
+      title: 'Воскресенье — выходной',
+      subtitle: 'Полный отдых',
+      duration: 0,
+      rpe: '1',
+      blocks: [
+        { title: 'Отдых', items: [
+          { name: 'Без тренировки', dose: '—', track: false, note: 'Сон, прогулка, вода и еда. Восстановление — часть плана' }
+        ] }
+      ],
+      note: 'Воскресенье — полный выходной: не тренируемся. Если хочется движения — спокойная прогулка 20–30 минут, но без цели «добрать тренировку».'
+    };
+  }
+
+  /* ------------------------------- Вечер --------------------------------- */
+
+  // Пн/Ср/Пт — только шпагат и мобильность тазобедренных суставов.
+  function stretchSession(w, kind) {
+    const deload = isDeload(w);
+    const hold = deload ? Math.max(30, P.hold[w - 1] - 10) : P.hold[w - 1];
+    const pnf = w >= 5;
+    const active = w >= 9;
+    const pnfNote = pnf
+      ? 'PNF: 20 с лёгкого напряжения → 20 с расслабления → 30 с растяжения'
+      : 'Дыши в живот, на выдохе чуть углубляй. Рабочая глубина — 3–4/10';
+    const base = {
+      slot: 'evening', type: 'stretch', emoji: '🧘',
+      duration: deload ? 30 : (pnf ? 45 : 40),
+      rpe: '2–4'
+    };
+    const warmup = {
+      title: 'Разогрев и мобильность бёдер',
+      items: [
+        it('dyn-legs', '4 мин', { minutes: true, track: false, note: 'Махи вперёд-назад, круги бедром, боковые выпады — без резких движений' }),
+        it('mobility-hips', '5 мин', { minutes: true, track: false, note: '90/90, выпад с ротацией, глубокий присед с покачиванием' })
+      ]
+    };
+    const activeBlock = active ? [{
+      title: 'Активная гибкость',
+      items: [stretch('active-kicks', '3×10/ногу', 'Махи подконтрольно, корпус не раскачивается')]
+    }] : [];
+    if (kind === 'front') {
+      return Object.assign(base, {
+        id: 'mon-pm',
+        title: 'Шпагат: продольный + мобильность бёдер',
+        subtitle: 'Только шпагат и тазобедренные суставы',
+        blocks: [
+          warmup,
+          { title: 'Продольный шпагат', items: [
+            stretch('stretch-front-split', '3×' + hold + ' с/сторону (тренажёр)', pnfNote),
+            stretch('stretch-hipflexor', '2×' + hold + ' с/сторону'),
+            stretch('stretch-hamstring', '3×' + hold + ' с/сторону')
+          ] },
+          { title: 'Дополнительно', items: [
+            stretch('stretch-pigeon', '2×' + hold + ' с/сторону'),
+            stretch('stretch-adductor', '2×' + hold + ' с')
+          ] },
+          ...activeBlock
+        ],
+        note: 'Только шпагат и мобильность бёдер. Прогресс — +5–10 с удержания в неделю и глубина на 1–2 см, а не «через боль». С 5-й недели PNF, с 9-й — активные махи.'
+      });
+    }
+    if (kind === 'side') {
+      return Object.assign(base, {
+        id: 'wed-pm',
+        title: 'Шпагат: поперечный + мобильность бёдер',
+        subtitle: 'Приводящие и тазобедренные суставы',
+        blocks: [
+          warmup,
+          { title: 'Поперечный шпагат', items: [
+            stretch('stretch-side-split', '3×' + hold + ' с (тренажёр)', pnfNote),
+            stretch('stretch-adductor', '3×' + hold + ' с', pnfNote)
+          ] },
+          { title: 'Дополнительно', items: [
+            stretch('stretch-pigeon', '2×' + hold + ' с/сторону'),
+            stretch('stretch-hamstring', '2×' + hold + ' с/сторону')
+          ] },
+          ...activeBlock
+        ],
+        note: 'Только шпагат и мобильность бёдер. Приводящие — зона риска: тяни мягко, без рывков. Прогресс 1–2 см в неделю — уже хорошо.'
+      });
+    }
+    return Object.assign(base, {
+      id: 'fri-pm',
+      title: 'Шпагат: полный комплекс',
+      subtitle: 'Продольный, поперечный и бёдра',
+      blocks: [
+        warmup,
+        { title: 'Продольный шпагат', items: [
+          stretch('stretch-front-split', '2×' + hold + ' с/сторону (тренажёр)', pnfNote),
+          stretch('stretch-hipflexor', '2×' + hold + ' с/сторону')
+        ] },
+        { title: 'Поперечный шпагат', items: [
+          stretch('stretch-side-split', '2×' + hold + ' с (тренажёр)', pnfNote),
+          stretch('stretch-adductor', '2×' + hold + ' с')
+        ] },
+        { title: 'Мобильность бёдер', items: [
+          stretch('stretch-pigeon', '2×' + hold + ' с/сторону'),
+          stretch('stretch-hamstring', '2×' + hold + ' с/сторону')
+        ] },
+        ...activeBlock
+      ],
+      note: 'Только шпагат и мобильность бёдер. Пятница — самый длинный блок гибкости: не спеши, дыши ровно, глубину увеличивай только на выдохе.'
+    });
+  }
+
+  // Вт/Чт/Сб — силовые 60–90 минут.
+  function tuesdayPM(w, meta) {
+    const deload = isDeload(w);
+    const s = deload ? 2 : P.mainSets[w - 1];
     const reps = P.mainReps[w - 1];
     const rpe = P.rpe[w - 1];
     const h = P.coreHold[w - 1];
-    const test = meta.test;
-    const items = [];
-    if (test) {
-      items.push({
-        ex: 'pullup', name: 'ТЕСТ: подтягивания до отказа', dose: '1 подход',
-        reps: true, track: true,
-        note: 'Запиши число в «Прогресс → Тесты». Это база для сравнения'
-      });
-    }
+    const pushSets = meta.test ? Math.max(2, s - 1) : s;
+    const tests = meta.test ? [
+      { ex: 'pushup', name: 'ТЕСТ: отжимания до отказа', dose: '1 подход', reps: true, track: true, note: 'Запиши число в «Прогресс → Тесты»' },
+      { ex: 'core-plank', name: 'ТЕСТ: планка на максимум', dose: '1 подход', track: true, note: 'Секунды запиши в «Прогресс → Тесты»' }
+    ] : [];
     return {
-      id: 'tue-am', slot: 'morning', type: 'strength', emoji: '🏋️',
+      id: 'tue-pm', slot: 'evening', type: 'strength', emoji: '🏋️',
       title: 'Сила A: ноги + жимы',
-      subtitle: 'Базовые движения · RPE ' + rpe,
-      duration: test ? 44 : 42,
+      subtitle: 'Гоблет, жим с пола, выпады · RPE ' + rpe,
+      duration: deload ? 60 : (weekInBlock(w) === 3 ? 85 : 75),
       rpe: String(rpe),
       blocks: [
-        { title: 'Разминка', items: [warmupRow({ dose: '7 мин' }), it('scap-pull', '2×8')] },
-        ...(items.length ? [{ title: 'Тест', items: items }] : []),
-        { title: 'A. Суперсет: ноги + жим', items: [
+        strengthWarmup([it('dyn-legs', '2 мин', { minutes: true, track: false })]),
+        ...testBlock(tests),
+        { title: 'A. Ноги', items: [
           it('kb-goblet', s + '×' + reps, {
             weight: true, reps: true,
             load: 'гиря ' + LOAD.goblet[w - 1] + ' кг',
-            note: 'Чередуй с жимом. Отдых 75–90 с после пары. Верх диапазона с RPE ≤ 7 — добавь 2–4 кг'
+            note: 'Отдых ' + P.rest[w - 1] + ' с. Верх диапазона с RPE ≤ 7 — добавь 2–4 кг'
           }),
+          it('db-split', s + '×8–10/ногу', {
+            weight: true, reps: true, load: LOAD.dbSplit[w - 1],
+            note: 'Колено по носку, корпус вертикально. Отдых 90 с'
+          })
+        ] },
+        { title: 'B. Жимы', items: [
           it('db-floor', s + '×8–10', {
             weight: true, reps: true, load: 'гантели ' + LOAD.dbFloor[w - 1],
             note: 'Локти 45°, опускание до пола, без удара'
-          })
-        ] },
-        { title: 'B. Суперсет: тяга + отжимания', items: [
-          it('db-row', rowSets + '×10–12/руку', {
-            weight: true, reps: true, load: 'гантель ' + LOAD.dbRow[w - 1] + ' кг',
-            note: 'Чередуй с отжиманиями. Спина ровная, без рывка'
           }),
-          it('pushup', s + '×12–20', {
+          it('pushup', pushSets + '×12–20', {
             reps: true,
-            note: 'Собственный вес: тело одной линией. Легко — ноги на возвышении, тяжело — с колен'
+            note: 'Тело одной линией. Легко — ноги на возвышении, тяжело — с колен'
           })
         ] },
         { title: 'C. Мощность', items: [
-          it('kb-swing', '3×' + P.swingReps[w - 1], {
+          it('kb-swing', (deload ? 2 : 4) + '×' + P.swingReps[w - 1], {
             weight: true, reps: true, load: 'гиря ' + LOAD.swing[w - 1] + ' кг',
             note: 'Мощность из бёдер, не приседания. Отдых 60–75 с'
           })
         ] },
         { title: 'Кор', items: [
-          it('core-plank', '2×' + h + ' с'),
-          it('core-crunch', '2×15–20', { reps: true, note: 'Скручивания: лопатки вверх, поясница прижата' }),
-          it('core-twist', '2×12/сторону', { reps: true, note: 'Ротация от грудного отдела, таз стабилен' })
+          it('core-plank', '3×' + h + ' с', { note: 'Таз нейтрально, дыхание ровное' }),
+          it('core-crunch', '3×15–20', { reps: true, note: 'Лопатки вверх, поясница прижата' }),
+          it('core-twist', '3×12/сторону', { reps: true, note: 'Ротация от грудного отдела, таз стабилен' }),
+          it('bw-glute-bridge', '3×15', { reps: true, note: 'Вверху сожми ягодицы на 2 с' })
         ] }
       ],
-      note: 'Лимит утра — 45 минут: работаем суперсетами, отдых по таймеру. Если утром пульс покоя выше обычного на 7+ уд/мин или сон меньше 6 ч — сделай на 1 подход меньше в базовых.'
+      note: 'Вечерняя силовая 60–90 минут. Прогресс: сначала верх диапазона повторов с RPE ≤ 7, затем +2–4 кг. Записывай вес и повторы — приложение покажет прошлый результат.'
     };
   }
 
-  function wednesdayAM(w, meta) {
-    const sets = P.intSets[w - 1];
-    const work = P.intMin[w - 1];
-    if (meta.test) {
-      return {
-        id: 'wed-am', slot: 'morning', type: 'row', emoji: '⏱️',
-        title: 'Тест 500 м + лёгкая гребля',
-        subtitle: 'Контроль прогресса',
-        duration: 40,
-        rpe: '8–9',
-        blocks: [
-          { title: 'Разминка', items: [warmupRow({ dose: '10 мин' }), it('row-z2', '5 мин', { minutes: true, note: 'Очень легко, темп 18–20' })] },
-          { title: 'Тест', items: [it('row-test', '500 м', { minutes: true, meters: true, note: 'Максимально ровно. Время запиши в «Прогресс → Тесты»' })] },
-          { title: 'Заминка', items: [
-            it('row-easy', '10 мин', { minutes: true, note: 'Пульс вниз, дыхание носом' }),
-            it('breathing-46', '3 мин', { minutes: true })
-          ] }
-        ],
-        note: 'Не разгоняйся в первые 100 м. После теста — обязательно 10 мин очень лёгкой гребли.'
-      };
-    }
-    const workLabel = work === 1.5 ? '90 с' : work + ' мин';
-    return {
-      id: 'wed-am', slot: 'morning', type: 'row', emoji: '💥',
-      title: 'Гребля: интервалы',
-      subtitle: 'Выносливость к раундам',
-      duration: sets >= 7 ? 44 : 42,
-      rpe: '7–8',
-      blocks: [
-        { title: 'Разминка', items: [warmupRow({ dose: '7 мин' }), it('row-z2', '3 мин', { minutes: true, note: 'Легко, затем 3 ускорения по 15 с' })] },
-        { title: 'Интервалы', items: [
-          it('row-int', sets + '×(' + workLabel + ' RPE 8 / 1 мин легко)', {
-            minutes: true, meters: true,
-            note: 'Отдых активный: гребля темпом 16–18. Темп отрезков одинаковый'
-          })
-        ] },
-        bwBlock(w, 1),
-        { title: 'Заминка и хват', items: [
-          it('row-easy', '4 мин', { minutes: true }),
-          it('grip-hang', '2×20–40 с', { note: 'Вис на турнике, плечи активны' }),
-          it('neck-iso', '2×10 с в каждую сторону')
-        ] }
-      ],
-      note: 'Лимит утра — 45 минут: количество отрезков уже подогнано. Вечером — растяжка бёдер и приводящих. Если интервалы дались тяжело (RPE 9+), вечером оставь только дыхание и мягкую растяжку.'
-    };
-  }
-
-  function thursdayAM(w) {
-    // Утренняя сессия — не больше 45 минут: базовые упражнения в суперсетах.
-    const s = Math.min(P.mainSets[w - 1], 3);
-    const sec = Math.min(P.secSets[w - 1], 3);
+  function thursdayPM(w, meta) {
+    const deload = isDeload(w);
+    const s = deload ? 2 : P.mainSets[w - 1];
+    const sec = deload ? 2 : P.secSets[w - 1];
     const rpe = P.rpe[w - 1];
-    const wIn = ((w - 1) % 4) + 1;
-    let pullDose;
-    if (wIn === 4) pullDose = '2×4';
-    else if (w <= 7) pullDose = '4×4–7';
-    else pullDose = '4×5–7';
+    const h = P.coreHold[w - 1];
+    const pullDose = deload ? '2×4' : (w <= 4 ? '4×4–5' : (w <= 8 ? '4×5–6' : '4×6–8'));
+    const tests = [];
+    if (meta.test) {
+      tests.push({ ex: 'pullup', name: 'ТЕСТ: подтягивания до отказа', dose: '1 подход', reps: true, track: true, note: 'Запиши число в «Прогресс → Тесты»' });
+      if (w >= 6) {
+        tests.push({ ex: 'kb-press', name: 'ТЕСТ: жим 24 кг на максимум', dose: '1 подход/сторону', weight: true, reps: true, load: 'гиря 24 кг', track: true, note: 'Сначала разомнись с 16 кг. Результат — в «Прогресс → Тесты»' });
+      }
+    }
     return {
-      id: 'thu-am', slot: 'morning', type: 'strength', emoji: '💪',
+      id: 'thu-pm', slot: 'evening', type: 'strength', emoji: '💪',
       title: 'Сила B: тяга + плечи',
       subtitle: 'Спина, хват, жим · RPE ' + rpe,
-      duration: 44,
+      duration: deload ? 60 : (weekInBlock(w) === 3 ? 85 : 75),
       rpe: String(rpe),
       blocks: [
-        { title: 'Разминка', items: [warmupRow({ dose: '7 мин' }), it('scap-pull', '2×10')] },
+        strengthWarmup(),
+        ...testBlock(tests),
         { title: 'A. Подтягивания', items: [
           it('pullup', pullDose, {
             reps: true,
-            note: 'Если меньше 4 чистых — делай негативы 4×5 (спуск 5 с). Отдых 90–120 с'
+            note: 'Если меньше 4 чистых — негативы 4×5 (спуск 5 с). Отдых 90–120 с'
           })
         ] },
-        { title: 'B. Суперсет: тяга + жим', items: [
+        { title: 'B. Тяга', items: [
           it('kb-deadlift', s + '×6–8', {
             weight: true, reps: true,
             load: 'гири ' + LOAD.deadlift[w - 1] + ' кг',
-            note: 'Чередуй с жимом. Спина нейтральная, толкай пол. Отдых 75–90 с после пары'
+            note: 'Спина нейтральная, толкай пол. Отдых ' + P.rest[w - 1] + ' с'
           }),
+          it('kb-row', '3×8–10/сторону', {
+            weight: true, reps: true, load: 'гиря 24 кг',
+            note: 'Без рывка, лопатка к позвоночнику. Прогресс — повторы и пауза 1 с вверху'
+          })
+        ] },
+        { title: 'C. Жим', items: [
           it('kb-press', sec + '×5–8/сторону', {
             weight: true, reps: true, load: 'гиря ' + LOAD.press[w - 1] + ' кг',
             note: 'Без прогиба в пояснице, пресс и ягодицы напряжены'
+          }),
+          it('db-press', '3×8–10', {
+            weight: true, reps: true, load: 'гантели ' + LOAD.dbPress[w - 1],
+            note: 'Локти под 45°, не разводи до боли в плече'
           })
         ] },
-        { title: 'C. Суперсет: тяга + выпады', items: [
-          it('kb-row', '3×8–10/сторону', {
-            weight: true, reps: true, load: 'гиря 24 кг',
-            note: 'Чередуй с выпадами, отдых 60–75 с после пары'
-          }),
-          it('bw-reverse-lunge', (wIn === 4 ? 2 : 3) + '×8–10/ногу', {
+        { title: 'D. Ноги и переноска', items: [
+          it('bw-reverse-lunge', '3×8–12/ногу', {
             reps: true,
-            note: 'Собственный вес: шаг назад, колено по носку. С опорой рукой — если шатает'
+            note: 'Шаг назад, колено по носку. С опорой рукой — если шатает'
+          }),
+          it('kb-carry', '3×30–40 м', {
+            weight: true, load: '24 + 16 кг',
+            note: 'Плечи вниз, корпус ровно, дыхание не задерживай'
           })
         ] },
         { title: 'Кор и шея', items: [
-          it('core-crunch', '2×15–20', { reps: true, note: 'Скручивания: лопатки вверх, поясница прижата' }),
-          it('core-twist', '2×12/сторону', { reps: true, note: 'Ротация корпуса для ударов и клинча, без рывка' }),
+          it('core-crunch', '3×15–20', { reps: true, note: 'Лопатки вверх, поясница прижата' }),
+          it('core-twist', '3×12/сторону', { reps: true, note: 'Ротация корпуса для ударов и клинча, без рывка' }),
+          it('core-side', '3×' + Math.round(h * 0.8) + ' с/сторону'),
           it('neck-iso', '2×15 с в каждую сторону')
         ] }
       ],
-      note: 'Лимит утра — 45 минут. После тяжёлой тяги — вис на турнике 30 с, чтобы разгрузить поясницу. Вечером растяжка приводящих и грудного отдела.'
+      note: 'Вечерняя силовая 60–90 минут. Прогресс: подтягивания — +1 повтор; тяга и жим — +2–4 кг после верхнего повтора с RPE ≤ 7. После тяжёлой тяги — вис на турнике 30 с.'
     };
   }
 
-  function fridayAM(w) {
+  function saturdayPM(w, meta) {
+    const deload = isDeload(w);
+    const s = deload ? 2 : P.mainSets[w - 1];
+    const rpe = P.rpe[w - 1];
     const h = P.coreHold[w - 1];
-    const deload = ((w - 1) % 4) + 1 === 4;
-    const workBlock = deload
-      ? '2×(5 мин темп RPE 7 / 2 мин легко)'
-      : '3×(5 мин темп RPE 7 / 2 мин легко)';
     return {
-      id: 'fri-am', slot: 'morning', type: 'row', emoji: '🔥',
-      title: 'Гребля: темп + кор',
-      subtitle: 'Пороговая работа, но без отказа',
-      duration: deload ? 40 : 45,
-      rpe: '6–7',
+      id: 'sat-pm', slot: 'evening', type: 'strength', emoji: '⚡',
+      title: 'Сила C: полное тело + мощность',
+      subtitle: 'Гиря, турник, координация · RPE ' + rpe,
+      duration: deload ? 60 : (weekInBlock(w) === 3 ? 85 : 75),
+      rpe: String(rpe),
       blocks: [
-        { title: 'Разминка', items: [warmupRow({ dose: '7 мин' })] },
-        { title: 'Основная работа', items: [
-          it('row-z2', '5 мин', { minutes: true, note: 'Пульс 130–140, темп 20' }),
-          it('row-tempo', workBlock, {
-            minutes: true, meters: true,
-            note: 'Пульс 150–165 на рабочих отрезках. Если выше — сбавь темп, а не амплитуду'
-          }),
-          it('row-easy', '3 мин', { minutes: true, note: 'Заминка, пульс вниз' })
-        ] },
-        bwBlock(w, 1),
-        { title: 'Кор', items: [
-          it('core-plank', '2×' + h + ' с'),
-          it('core-deadbug', '2×8/сторону')
-        ] },
-        { title: 'Мобильность', items: [
-          it('mobility-hips', '2 мин', { minutes: true })
-        ] }
-      ],
-      note: 'Лимит утра — 45 минут: не удлиняй отдых и не добавляй отрезки. Задача — держать темп и оставить силы на вечернюю растяжку.'
-    };
-  }
-
-  function saturdayAM(w) {
-    const wIn = ((w - 1) % 4) + 1;
-    const rounds = wIn === 4 ? 2 : 3;
-    return {
-      id: 'sat-am', slot: 'morning', type: 'strength', emoji: '⚡',
-      title: 'Сила C: мощность + комплекс',
-      subtitle: 'Гиря, хват, координация',
-      duration: wIn === 4 ? 40 : 43,
-      rpe: '7–8',
-      blocks: [
-        { title: 'Разминка', items: [warmupRow({ dose: '7 мин' }), it('dyn-legs', '2 мин', { minutes: true, track: false })] },
-        { title: 'Комплекс (круговая)', items: [
-          {
-            ex: 'kb-swing', name: 'Круг: мах 10 + гоблет 8 + жим 5/сторона',
-            dose: rounds + ' кругов', weight: true, reps: true,
-            load: 'гиря ' + LOAD.swing[w - 1] + ' кг',
-            note: 'Отдых 90 с между кругами. Темп рабочий, но техника чистая'
-          },
-          it('kb-tgu', '2×2/сторону', {
-            weight: true, reps: true, load: 'гиря ' + LOAD.tgu[w - 1] + ' кг',
-            note: 'Взгляд на гирю, каждый этап контролируем'
-          }),
-          it('kb-front-squat', '2×8', {
+        strengthWarmup([it('dyn-legs', '3 мин', { minutes: true, track: false })]),
+        { title: 'A. Ноги', items: [
+          it('kb-front-squat', s + '×6–8', {
             weight: true, reps: true, load: 'гири ' + LOAD.frontSquat[w - 1],
-            note: 'Корпус вертикально, дыхание животом'
-          }),
-          it('pullup', '2×4–6', {
-            reps: true,
-            note: 'Без раскачки. Не получается — негативы 2×5'
+            note: 'Корпус вертикально, дыхание животом. Отдых ' + P.rest[w - 1] + ' с'
           })
         ] },
-        { title: 'Хват и кор', items: [
-          it('grip-hang', '2×макс', { note: 'До 45 с, но не до полного срыва' }),
-          it('bw-glute-bridge', '2×15', { reps: true, note: 'Собственный вес: вверху сожми ягодицы на 2 с' }),
-          it('bw-superman', '2×12', { reps: true, note: 'Тянись в длину, шея нейтрально' }),
-          it('core-crunch', '2×15–20', { reps: true, note: 'Скручивания: без рывка, поясница прижата' }),
-          it('core-twist', '2×12/сторону', { reps: true, note: 'Ротация корпуса, таз неподвижен' })
+        { title: 'B. Турецкий подъём', items: [
+          it('kb-tgu', (deload ? 2 : 3) + '×2/сторону', {
+            weight: true, reps: true, load: 'гиря ' + LOAD.tgu[w - 1] + ' кг',
+            note: 'Взгляд на гирю, каждый этап контролируем. Без спешки'
+          })
+        ] },
+        { title: 'C. Взятие и жим', items: [
+          it('kb-clean', '3×5/сторону', {
+            weight: true, reps: true, load: 'гиря ' + LOAD.press[w - 1] + ' кг',
+            note: 'Взятие мягкое, гиря не бьёт по предплечью. Прогресс — чистота и повторы'
+          })
+        ] },
+        { title: 'D. Турник и мощность', items: [
+          it('pullup', '3×4–6', {
+            reps: true,
+            note: 'Без раскачки. Не получается — негативы 3×5'
+          }),
+          it('kb-swing', '4×' + P.swingReps[w - 1], {
+            weight: true, reps: true, load: 'гиря ' + LOAD.swing[w - 1] + ' кг',
+            note: 'Мощность из бёдер. Отдых 60–90 с'
+          })
+        ] },
+        { title: 'Кор', items: [
+          it('core-hollow', '3×' + Math.round(h * 0.6) + ' с', { note: 'Поясница прижата, рёбра вниз' }),
+          it('core-birddog', '3×8/сторону'),
+          it('bw-superman', '3×12', { reps: true, note: 'Тянись в длину, шея нейтрально' }),
+          it('core-crunch', '3×15–20', { reps: true, note: 'Скручивания: без рывка, поясница прижата' }),
+          it('core-twist', '3×12/сторону', { reps: true, note: 'Ротация корпуса, таз неподвижен' }),
+          it('core-plank', '3×' + h + ' с')
         ] }
       ],
-      note: 'Лимит утра — 45 минут: 2–3 круга, без дополнительных подходов. Суббота — силовой день, вечером полная растяжка. RPE не выше 8.'
+      note: 'Вечерняя силовая 60–90 минут. Суббота — самый объёмный день: прогресс идёт через повторы, паузы и качество техники, а не только через вес. RPE не выше 8.'
     };
   }
 
-  function sundayAM(w) {
-    const deload = w === 4 || w === 8 || w === 12;
-    const min = deload ? 20 : 28;
+  function sundayPM() {
     return {
-      id: 'sun-am', slot: 'morning', type: 'row', emoji: '🌿',
-      title: 'Восстановление: гребля + мобильность',
-      subtitle: 'Лёгкий день',
-      duration: deload ? 40 : 44,
-      rpe: '4–5',
+      id: 'sun-pm', slot: 'evening', type: 'rest', emoji: '🌙',
+      title: 'Воскресенье — выходной',
+      subtitle: 'Отдых и разбор недели',
+      duration: 0,
+      rpe: '1',
       blocks: [
-        { title: 'Разминка', items: [warmupRow({ dose: '6 мин' })] },
-        { title: 'Основная работа', items: [
-          it('row-easy', min + ' мин', { minutes: true, meters: true, note: 'Пульс до 135, темп 18–20. Можно заменить прогулкой' })
-        ] },
-        { title: 'Мобильность и растяжка', items: [
-          it('stretch-hipflexor', '2×45 с/сторону'),
-          it('stretch-pec', '2×45 с/сторону'),
-          it('stretch-thoracic', '2×8'),
-          it('cat-cow', '10')
-        ] },
-        { title: 'Дыхание', items: [breath(4)] }
-      ],
-      note: 'Лимит утра — 45 минут. Это восстановительная тренировка: если устал — замени на 25–30 минут прогулки. Вечером — отдых и разбор недели.'
-    };
-  }
-
-  // Вечер: 21:20. Пн/Ср/Пт — восстановление, Вт/Чт/Сб — растяжка, Вс — отдых.
-
-  function recoverySession(w) {
-    const deload = ((w - 1) % 4) + 1 === 4;
-    return {
-      id: 'recovery-pm', slot: 'evening', type: 'recovery', emoji: '🌿',
-      title: 'Восстановление: мобильность + дыхание',
-      subtitle: 'Мягкая сессия, снимает усталость',
-      duration: deload ? 20 : 28,
-      rpe: '1–3',
-      blocks: [
-        { title: 'Дыхание', items: [breath(2)] },
-        { title: 'Мобильность', items: [
-          it('cat-cow', '8'),
-          it('mobility-hips', '4 мин', { minutes: true }),
-          it('stretch-hipflexor', '2×40 с/сторону'),
-          it('stretch-thoracic', '2×8/сторону'),
-          it('stretch-calf', '2×30 с/сторону'),
-          it('stretch-wrist', '2×20 с')
-        ] },
-        { title: 'Перед сном', items: [
-          { ex: 'breathing-46', name: 'Дыхание 4–6', dose: '4 мин', minutes: true, track: true },
-          { name: 'Ноги выше головы', dose: '3 мин', track: true, note: 'Ляг у стены, ноги вертикально — снимает усталость ног' }
+        { title: 'Отдых', items: [
+          { name: 'Без тренировки', dose: '—', track: false, note: 'Сон, вода, белок. Вечером — спокойно посмотри вес, сон и самочувствие за неделю' }
         ] }
       ],
-      note: 'Это не тренировка «до усталости», а восстановление. Если вечером была основная нагрузка в зале — сократи до 10 минут: дыхание, бёдра, спина.'
+      note: 'Воскресенье — полный выходной. Не догоняй пропущенное: лучше начать новую неделю свежим. Если вес не меняется 2 недели — убери 100–150 ккал, а не добавляй тренировку.'
     };
-  }
-
-  function stretchSession(w, kind) {
-    const h = P.hold[w - 1];
-    const pnf = w >= 5;
-    const active = w >= 9;
-    const pnfNote = pnf
-      ? 'PNF: 20 с лёгкого напряжения → 20 с расслабления → 30 с растяжения'
-      : 'Дыши в живот, на выдохе чуть углубляй';
-    const base = {
-      slot: 'evening', type: 'stretch',
-      duration: pnf ? 40 : 35,
-      rpe: '2–4'
-    };
-    const dynamic = { title: 'Динамика и разогрев', items: [
-      it('dyn-legs', '4 мин', { minutes: true, track: false }),
-      it('cat-cow', '8'),
-      it('world-stretch', '4/сторону')
-    ] };
-    if (kind === 'posterior') {
-      return Object.assign(base, {
-        id: 'tue-pm', emoji: '🧘',
-        title: 'Растяжка: задняя цепь + продольный шпагат',
-        subtitle: 'Для ударов ногами и бросков',
-        blocks: [
-          { title: 'Настройка', items: [breath(2)] },
-          dynamic,
-          { title: 'Основное', items: [
-            stretch('stretch-front-split', '3×' + h + ' с/сторону (тренажёр)', pnfNote),
-            stretch('stretch-hamstring', '3×' + h + ' с/сторону'),
-            stretch('stretch-calf', '2×' + h + ' с/сторону'),
-            stretch('stretch-hipflexor', '2×' + h + ' с/сторону'),
-            stretch('stretch-pigeon', '2×' + h + ' с/сторону')
-          ] },
-          { title: 'Активная гибкость' + (active ? '' : ' (с 9-й недели)'), items: active ? [
-            stretch('active-kicks', '3×10/ногу')
-          ] : [
-            { name: 'Пока пропускаем — начнём в блоке 3', dose: '—', track: false }
-          ] },
-          { title: 'Завершение', items: [breath(3)] }
-        ],
-        note: 'Вечером после силовой тренировки. Не тяни до острой боли: 3–4/10 — рабочий уровень.'
-      });
-    }
-    if (kind === 'wed') {
-      return Object.assign(base, {
-        id: 'wed-pm', emoji: '🧘',
-        title: 'Растяжка: бёдра + грудной отдел',
-        subtitle: 'Подвижность для ударов и клинча',
-        duration: pnf ? 35 : 30,
-        blocks: [
-          { title: 'Настройка', items: [breath(2)] },
-          dynamic,
-          { title: 'Основное', items: [
-            stretch('stretch-side-split', '2×' + h + ' с (тренажёр)', pnfNote),
-            stretch('stretch-pigeon', '2×' + h + ' с/сторону'),
-            stretch('stretch-thoracic', '2×8/сторону'),
-            stretch('stretch-pec', '2×' + h + ' с/сторону'),
-            stretch('stretch-lat', '2×' + h + ' с/сторону')
-          ] },
-          { title: 'Завершение', items: [breath(3)] }
-        ],
-        note: 'Середина недели: разгружаем бёдра и грудной отдел, не гоняясь за глубиной.'
-      });
-    }
-
-    if (kind === 'adductors') {
-      return Object.assign(base, {
-        id: 'thu-pm', emoji: '🧘',
-        title: 'Растяжка: приводящие + плечи',
-        subtitle: 'Поперечный шпагат, клинч, удары руками',
-        blocks: [
-          { title: 'Настройка', items: [breath(2)] },
-          dynamic,
-          { title: 'Основное', items: [
-            stretch('stretch-side-split', '3×' + h + ' с (тренажёр)', pnfNote),
-            stretch('stretch-adductor', '3×' + h + ' с', pnfNote),
-            stretch('stretch-thoracic', '2×8/сторону'),
-            stretch('stretch-pec', '2×' + h + ' с/сторону'),
-            stretch('stretch-lat', '2×' + h + ' с/сторону'),
-            stretch('stretch-neck', '2×20 с/сторону', 'Мягко, без давления на позвонки')
-          ] },
-          { title: 'Кисти', items: [
-            stretch('stretch-wrist', '2×30 с'),
-            stretch('stretch-ankle', '2×30 с/сторону')
-          ] },
-          { title: 'Завершение', items: [breath(3)] }
-        ],
-        note: 'Приводящие — самая частая зона травм в единоборствах. Растягивай их регулярно, но без фанатизма: прогресс 1–2 см в неделю — уже хорошо.'
-      });
-    }
-    if (kind === 'rest') {
-      return {
-        id: 'sun-pm', slot: 'evening', type: 'rest', emoji: '🌙',
-        title: 'Отдых и разбор недели',
-        subtitle: 'Восстановление — часть тренировки',
-        duration: 15,
-        rpe: '1–2',
-        blocks: [
-          { title: 'Ритуал', items: [
-            { ex: 'breathing-46', name: 'Дыхание 4–6', dose: '5 мин', minutes: true, track: true },
-            { name: 'Лёгкая мобильность', dose: '5 мин', track: true, note: 'Кошка-корова, 90/90, наклон к ногам — без цели «сесть ниже»' },
-            { name: 'Разбор недели', dose: '3 мин', track: true, note: 'Вес, талия, сон, самочувствие. Если вес не меняется 2 недели — минус 100–150 ккал' }
-          ] }
-        ],
-        note: 'Сегодня не тренируемся. Сон до 23:00, вода, белок. Завтра утром — новая неделя.'
-      };
-    }
-    // full
-    return Object.assign(base, {
-      id: 'sat-pm', emoji: '🧘',
-      title: 'Растяжка: полный комплекс',
-      subtitle: 'Шпагаты, шея, кисти, стопы',
-      blocks: [
-        { title: 'Настройка', items: [breath(2)] },
-        dynamic,
-        { title: 'Шпагаты', items: [
-          stretch('stretch-front-split', '3×' + h + ' с/сторону', pnfNote),
-          stretch('stretch-side-split', '3×' + h + ' с', pnfNote)
-        ] },
-        { title: 'Детали', items: [
-          stretch('stretch-hamstring', '2×' + h + ' с/сторону'),
-          stretch('stretch-adductor', '2×' + h + ' с'),
-          stretch('stretch-hipflexor', '2×' + h + ' с/сторону'),
-          stretch('stretch-neck', '2×20 с/сторону'),
-          stretch('stretch-wrist', '2×30 с'),
-          stretch('stretch-ankle', '2×30 с/сторону')
-        ] },
-        { title: 'Активная гибкость' + (active ? '' : ' (с 9-й недели)'), items: active ? [
-          stretch('active-kicks', '3×10/ногу'),
-          stretch('stretch-lat', '2×' + Math.round(h * 0.7) + ' с/сторону')
-        ] : [
-          { name: 'Пока пропускаем — начнём в блоке 3', dose: '—', track: false }
-        ] },
-        { title: 'Завершение', items: [breath(3)] }
-      ],
-      note: 'Самый длинный блок растяжки. Делай его в спокойном темпе, без спешки. Если днём была тяжёлая тренировка — сократи до 25 минут.'
-    });
   }
 
   /* --------------------------- Сборка тренировки ------------------------- */
 
   const MORNING = [mondayAM, tuesdayAM, wednesdayAM, thursdayAM, fridayAM, saturdayAM, sundayAM];
 
-  const EVENING_KIND = ['recovery', 'posterior', 'wed', 'adductors', 'recovery', 'full', 'rest'];
+  const EVENING = [stretchSessionFront, tuesdayPM, stretchSessionSide, thursdayPM, stretchSessionFull, saturdayPM, sundayPM];
+
+  function stretchSessionFront(w) { return stretchSession(w, 'front'); }
+  function stretchSessionSide(w) { return stretchSession(w, 'side'); }
+  function stretchSessionFull(w) { return stretchSession(w, 'full'); }
 
   function buildSession(week, weekday, slot) {
     const meta = weekMeta(week);
     const d = ((Number(weekday) % 7) + 7) % 7;
     if (slot === 'morning') return MORNING[d](meta.week, meta);
-    if (EVENING_KIND[d] === 'recovery') return recoverySession(meta.week);
-    return stretchSession(meta.week, EVENING_KIND[d]);
+    return EVENING[d](meta.week, meta);
   }
 
   window.PROGRAM = {

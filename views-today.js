@@ -57,6 +57,10 @@ function renderItem(item, bi, ii, dateISO, slot, log) {
 function renderSessionCard(session, dateISO, slot, log) {
   const prog = calcProgress(session, log);
   const time = slot === 'morning' ? state.times.morning : state.times.evening;
+  const durationText = session.type === 'rest' ? 'отдых' : session.duration + ' мин';
+  const kicker = session.type === 'rest'
+    ? (slot === 'morning' ? 'Утро' : 'Вечер') + ' · ' + durationText
+    : (slot === 'morning' ? 'Утро' : 'Вечер') + ' · ' + time + ' · ' + durationText;
   const blocks = session.blocks
     .map((b, bi) =>
       '<div class="block">' +
@@ -70,7 +74,7 @@ function renderSessionCard(session, dateISO, slot, log) {
       '<header class="session__head">' +
         '<div class="session__emoji" aria-hidden="true">' + session.emoji + '</div>' +
         '<div class="session__titles">' +
-          '<div class="session__kicker">' + (slot === 'morning' ? 'Утро' : 'Вечер') + ' · ' + time + ' · ' + session.duration + ' мин</div>' +
+          '<div class="session__kicker">' + kicker + '</div>' +
           '<h2 class="session__title">' + esc(session.title) + '</h2>' +
           '<div class="session__sub">' + esc(session.subtitle) + '</div>' +
         '</div>' +
@@ -137,7 +141,7 @@ function renderGreeting() {
   return (
     '<div class="hello">' +
       '<h1>Привет, ' + esc(name) + '!!!</h1>' +
-      '<p>Две тренировки в день: утро — работа, вечер — восстановление.</p>' +
+      '<p>Утром — гребля, вечером — растяжка на шпагат или силовая.</p>' +
     '</div>'
   );
 }

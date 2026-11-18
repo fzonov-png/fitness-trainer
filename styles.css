@@ -314,6 +314,9 @@ button.chip { min-height: 32px; }
 .session--stretch { --acc: var(--violet); }
 .session--recovery { --acc: var(--green); }
 .session--rest { --acc: var(--green); }
+.session--rest .session__stat,
+.session--rest .session__foot,
+.session--rest .note { display: none; }
 .session.is-done { border-color: rgba(61, 220, 151, .4); }
 .session.is-done::before { background: linear-gradient(90deg, var(--green), transparent 70%); }
 
