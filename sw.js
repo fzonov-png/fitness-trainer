@@ -1,5 +1,5 @@
 /* Офлайн-кеш приложения. После обновления файлов поменяй версию CACHE. */
-const CACHE = 't41-v12';
+const CACHE = 't41-v13';
 const ASSETS = [
   './',
   './index.html',
