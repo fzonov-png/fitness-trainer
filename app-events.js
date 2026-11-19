@@ -24,6 +24,7 @@ function render() {
   else if (ui.tab === 'guide') html = renderGuide();
   else html = renderToday();
   view.innerHTML = html;
+  if (exTimer) markRowTiming();
   document.querySelectorAll('#tabs [data-tab]').forEach((b) => {
     b.classList.toggle('is-active', b.dataset.tab === ui.tab);
   });
@@ -189,6 +190,8 @@ document.addEventListener('click', function (e) {
     return;
   }
   if (act === 'finish') {
+    stopExerciseTimer();
+    stopRest();
     const log = ensureLog(el.dataset.date, el.dataset.slot);
     log.done = true;
     log.finishedAt = new Date().toISOString();
@@ -210,6 +213,22 @@ document.addEventListener('click', function (e) {
   }
   if (act === 'timer-stop') {
     stopRest();
+    return;
+  }
+  if (act === 'ex-start') {
+    startExerciseTimer(el.dataset.date, el.dataset.slot, el.dataset.key);
+    return;
+  }
+  if (act === 'ex-set') {
+    finishExerciseSet();
+    return;
+  }
+  if (act === 'ex-skip') {
+    skipRestPhase();
+    return;
+  }
+  if (act === 'ex-stop') {
+    stopExerciseTimer();
     return;
   }
   if (act === 'ready') {

@@ -442,9 +442,14 @@ function readinessAdvice(r) {
 
 /* --------------------------------- Таймер --------------------------------- */
 
+// Простой отдых из подвала тренировки (60/90/120 с).
 let timer = { left: 0, id: null, total: 0 };
 
+// Таймер упражнения: выполнение подхода → отдых между подходами → отдых между упражнениями.
+let exTimer = null;
+
 function startRest(sec) {
+  stopExerciseTimer();
   stopRest();
   timer.total = sec;
   timer.left = sec;
@@ -470,6 +475,7 @@ function stopRest() {
   if (el) {
     el.hidden = true;
     el.innerHTML = '';
+    el.className = '';
   }
 }
 
@@ -481,10 +487,311 @@ function renderTimer() {
     document.body.appendChild(el);
   }
   el.hidden = false;
+  el.className = 'timer--rest';
   el.innerHTML =
-    '<span class="timer__label">Отдых</span>' +
-    '<strong class="timer__time">' + pad(Math.floor(timer.left / 60)) + ':' + pad(timer.left % 60) + '</strong>' +
-    '<button class="btn btn--ghost" data-act="timer-stop">Стоп</button>';
+    '<div class="timer__row">' +
+      '<div class="timer__body">' +
+        '<span class="timer__label">Отдых</span>' +
+        '<span class="timer__name">Восстановление</span>' +
+      '</div>' +
+      '<strong class="timer__time">' + pad(Math.floor(timer.left / 60)) + ':' + pad(timer.left % 60) + '</strong>' +
+    '</div>' +
+    '<div class="timer__acts">' +
+      '<button class="btn btn--primary btn--small" data-act="timer-stop">Пропустить отдых</button>' +
+    '</div>';
+}
+
+/* ---------------------- Таймер упражнения (по шагам) ---------------------- */
+
+// Разбирает дозировку: "3×10", "3×45 с", "3×60 с/сторону", "24 мин",
+// "7×(2 мин / 1 мин легко)", "500 м", "1 подход".
+function parseDose(item) {
+  const s = String((item && item.dose) || '').trim();
+  const out = { sets: 1, workSec: 0, restSec: 0, perSide: false };
+  if (/сторону|\/ногу|каждую/i.test(s)) out.perSide = true;
+
+  let m = s.match(/^(\d+)\s*[×x]\s*\((\d+(?:[.,]\d+)?)\s*мин[^/]*\/\s*(\d+(?:[.,]\d+)?)\s*мин/i);
+  if (m) {
+    out.sets = Number(m[1]) || 1;
+    out.workSec = Math.round(parseFloat(m[2].replace(',', '.')) * 60);
+    out.restSec = Math.round(parseFloat(m[3].replace(',', '.')) * 60);
+    return out;
+  }
+  m = s.match(/^(\d+)\s*[×x]\s*\((\d+)\s*с[^/]*\/\s*(\d+)\s*с/i);
+  if (m) {
+    out.sets = Number(m[1]) || 1;
+    out.workSec = Number(m[2]) || 0;
+    out.restSec = Number(m[3]) || 0;
+    return out;
+  }
+  m = s.match(/^(\d+)\s*[×x]\s*(\d+)(?:\s*[–-]\s*\d+)?\s*с(?=$|[\/\s])/i);
+  if (m) {
+    out.sets = Number(m[1]) || 1;
+    out.workSec = Number(m[2]) || 0;
+    return out;
+  }
+  m = s.match(/^(\d+)\s*[×x]\s*(\d+)/);
+  if (m) {
+    out.sets = Number(m[1]) || 1;
+    return out;
+  }
+  m = s.match(/^(\d+(?:[.,]\d+)?)\s*мин/i);
+  if (m) {
+    out.workSec = Math.round(parseFloat(m[1].replace(',', '.')) * 60);
+    return out;
+  }
+  m = s.match(/^(\d+)\s*с(?=$|[\/\s])/i);
+  if (m) out.workSec = Number(m[1]) || 0;
+  return out;
+}
+
+function findItemByKey(session, key) {
+  const parts = String(key || '').split('-');
+  const bi = Number(parts[0]);
+  const ii = Number(parts[1]);
+  const block = session && session.blocks && session.blocks[bi];
+  return block && block.items ? block.items[ii] || null : null;
+}
+
+function restFallback(session) {
+  if (session.type === 'strength') return 90;
+  if (session.type === 'stretch') return 20;
+  if (session.type === 'row') return 60;
+  return 30;
+}
+
+function restForExercise(session, item, parsed) {
+  if (parsed.restSec) return parsed.restSec;
+  const m = String((item && item.note) || '').match(/Отдых\s+(\d+)(?:\s*[–-]\s*(\d+))?\s*с/i);
+  if (m) return Number(m[2] || m[1]);
+  return restFallback(session);
+}
+
+function betweenExercises(session) {
+  if (session.type === 'strength') return 90;
+  if (session.type === 'stretch') return 45;
+  if (session.type === 'row') return 60;
+  return 30;
+}
+
+function clearTimingRows() {
+  document.querySelectorAll('.item.is-timing').forEach((r) => r.classList.remove('is-timing'));
+}
+
+function currentTimerRow(slot, key, dateISO) {
+  if (ui.tab !== 'today' || ui.date !== dateISO) return null;
+  const card = document.getElementById('sess-' + slot);
+  return card ? card.querySelector('.item[data-row="' + key + '"]') : null;
+}
+
+function markRowTiming() {
+  clearTimingRows();
+  if (!exTimer) return;
+  const row = currentTimerRow(exTimer.slot, exTimer.key, exTimer.dateISO);
+  if (row) row.classList.add('is-timing');
+}
+
+function startExerciseTimer(dateISO, slot, key) {
+  const session = sessionFor(dateISO, slot);
+  const item = findItemByKey(session, key);
+  if (!item) return;
+
+  stopRest();
+  stopExerciseTimer();
+
+  const parsed = parseDose(item);
+  let workSec = parsed.workSec;
+  if (workSec && parsed.perSide) workSec *= 2; // время на обе стороны
+
+  exTimer = {
+    dateISO: dateISO,
+    slot: slot,
+    key: key,
+    name: item.name || 'Упражнение',
+    sets: Math.max(1, parsed.sets),
+    set: 1,
+    workSec: workSec,
+    restSec: restForExercise(session, item, parsed),
+    betweenSec: betweenExercises(session),
+    perSide: parsed.perSide,
+    mode: 'work',
+    startAt: 0,
+    endAt: 0,
+    id: null
+  };
+  beginWorkPhase();
+  exTimer.id = setInterval(tickExerciseTimer, 250);
+  markRowTiming();
+  renderExTimer(true);
+}
+
+function beginWorkPhase() {
+  if (!exTimer) return;
+  exTimer.mode = 'work';
+  exTimer.startAt = Date.now();
+  exTimer.endAt = exTimer.workSec ? exTimer.startAt + exTimer.workSec * 1000 : 0;
+}
+
+function tickExerciseTimer() {
+  if (!exTimer) return;
+  const now = Date.now();
+  if (exTimer.mode === 'work') {
+    if (exTimer.workSec && now >= exTimer.endAt) {
+      finishExerciseSet();
+      return;
+    }
+  } else if (now >= exTimer.endAt) {
+    endRestPhase();
+    return;
+  }
+  updateExTimerTime();
+}
+
+function finishExerciseSet() {
+  if (!exTimer || exTimer.mode !== 'work') return;
+  beep();
+  if (navigator.vibrate) navigator.vibrate(120);
+  if (exTimer.set < exTimer.sets) {
+    exTimer.mode = 'rest-set';
+    exTimer.endAt = Date.now() + exTimer.restSec * 1000;
+    toast('Подход ' + exTimer.set + ' из ' + exTimer.sets + ' готов · отдых ' + exTimer.restSec + ' с');
+  } else {
+    exTimer.mode = 'rest-ex';
+    exTimer.endAt = Date.now() + exTimer.betweenSec * 1000;
+    toast('Последний подход готов · отдых ' + exTimer.betweenSec + ' с');
+  }
+  renderExTimer(true);
+}
+
+function endRestPhase() {
+  if (!exTimer) return;
+  if (exTimer.mode === 'rest-set') {
+    exTimer.set++;
+    beginWorkPhase();
+    beep();
+    if (navigator.vibrate) navigator.vibrate([160, 60, 160]);
+    toast('Подход ' + exTimer.set + ' из ' + exTimer.sets + ' — начинай');
+    renderExTimer(true);
+  } else if (exTimer.mode === 'rest-ex') {
+    completeExerciseTimer();
+  }
+}
+
+function skipRestPhase() {
+  if (!exTimer || exTimer.mode === 'work') return;
+  endRestPhase();
+}
+
+function completeExerciseTimer() {
+  if (!exTimer) return;
+  const t = exTimer;
+  stopExerciseTimer();
+  beep();
+  if (navigator.vibrate) navigator.vibrate([120, 80, 120]);
+
+  const session = sessionFor(t.dateISO, t.slot);
+  const item = findItemByKey(session, t.key);
+  const tracked = item ? item.track !== false : true;
+  const log = ensureLog(t.dateISO, t.slot);
+  const entry = log.items[t.key] || (log.items[t.key] = {});
+  if (tracked && !entry.done) {
+    entry.done = true;
+    entry.at = new Date().toISOString();
+    save();
+    const row = currentTimerRow(t.slot, t.key, t.dateISO);
+    if (row) {
+      row.classList.add('is-done');
+      const btn = row.querySelector('[data-act="toggle"]');
+      if (btn) btn.setAttribute('aria-checked', 'true');
+      const tools = row.querySelector('.item__tools');
+      if (tools) tools.remove();
+    }
+    refreshSessionProgress(t.dateISO, t.slot);
+  }
+  toast('Упражнение завершено ✓');
+}
+
+function stopExerciseTimer() {
+  if (exTimer && exTimer.id) clearInterval(exTimer.id);
+  exTimer = null;
+  clearTimingRows();
+  const el = document.getElementById('timer');
+  if (el && !timer.id) {
+    el.hidden = true;
+    el.innerHTML = '';
+    el.className = '';
+    delete el.dataset.modeKey;
+  }
+}
+
+function exTimerSeconds() {
+  if (!exTimer) return 0;
+  const now = Date.now();
+  if (exTimer.mode === 'work') {
+    return exTimer.workSec
+      ? Math.max(0, Math.ceil((exTimer.endAt - now) / 1000))
+      : Math.max(0, Math.floor((now - exTimer.startAt) / 1000));
+  }
+  return Math.max(0, Math.ceil((exTimer.endAt - now) / 1000));
+}
+
+function exTimerTimeText() {
+  const sec = exTimerSeconds();
+  return pad(Math.floor(sec / 60)) + ':' + pad(sec % 60);
+}
+
+function exTimerLabel() {
+  if (!exTimer) return '';
+  if (exTimer.mode === 'work') return 'Выполнение';
+  if (exTimer.mode === 'rest-set') return 'Отдых между подходами';
+  return 'Отдых между упражнениями';
+}
+
+function updateExTimerTime() {
+  if (!exTimer) return;
+  const el = document.getElementById('timer');
+  if (!el) return;
+  const t = el.querySelector('.timer__time');
+  if (t) t.textContent = exTimerTimeText();
+}
+
+function renderExTimer(force) {
+  if (!exTimer) return;
+  let el = document.getElementById('timer');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'timer';
+    document.body.appendChild(el);
+  }
+  el.hidden = false;
+
+  const modeKey = exTimer.mode + '|' + exTimer.set + '|' + exTimer.key + '|' + exTimer.dateISO;
+  if (!force && el.dataset.modeKey === modeKey) {
+    updateExTimerTime();
+    return;
+  }
+  el.dataset.modeKey = modeKey;
+  el.className = 'timer--' + (exTimer.mode === 'work' ? 'work' : 'rest');
+
+  const meta = exTimer.mode === 'rest-ex'
+    ? 'Упражнение готово · дальше — следующее'
+    : 'Подход ' + exTimer.set + ' из ' + exTimer.sets + (exTimer.perSide ? ' · на каждую сторону' : '');
+  el.innerHTML =
+    '<div class="timer__row">' +
+      '<div class="timer__body">' +
+        '<span class="timer__label">' + exTimerLabel() + '</span>' +
+        '<span class="timer__name">' + esc(exTimer.name) + '</span>' +
+        '<span class="timer__meta">' + meta + '</span>' +
+      '</div>' +
+      '<strong class="timer__time">' + exTimerTimeText() + '</strong>' +
+    '</div>' +
+    '<div class="timer__acts">' +
+      (exTimer.mode === 'work'
+        ? '<button class="btn btn--primary btn--small" data-act="ex-set">Подход готов</button>'
+        : '<button class="btn btn--primary btn--small" data-act="ex-skip">Пропустить отдых</button>') +
+      '<button class="btn btn--ghost btn--small" data-act="ex-stop">Стоп</button>' +
+    '</div>';
+  updateExTimerTime();
 }
 
 function beep() {

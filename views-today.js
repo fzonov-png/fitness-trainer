@@ -38,6 +38,7 @@ function renderItem(item, bi, ii, dateISO, slot, log) {
     ? '<button class="exlink" data-act="ex" data-ex="' + esc(item.ex) + '">' + esc(item.name) + '<i>i</i></button>'
     : '<span>' + esc(item.name) + '</span>';
   const last = hasEx ? lastText(item.ex) : '';
+  const canTime = (tracked || !!item.ex) && !done;
   return (
     '<div class="item' + (done ? ' is-done' : '') + (tracked ? '' : ' item--soft') + '" data-row="' + key + '">' +
       (tracked
@@ -49,6 +50,11 @@ function renderItem(item, bi, ii, dateISO, slot, log) {
         (item.note ? '<div class="item__note">' + esc(item.note) + '</div>' : '') +
         (last ? '<div class="item__last">прошлый раз: ' + esc(last) + '</div>' : '') +
         itemFields(item, entry, dateISO, slot, key, item.ex) +
+        (canTime
+          ? '<div class="item__tools">' +
+              '<button class="btn btn--ghost btn--small" data-act="ex-start" data-date="' + dateISO + '" data-slot="' + slot + '" data-key="' + key + '">⏱ Таймер: старт</button>' +
+            '</div>'
+          : '') +
       '</div>' +
     '</div>'
   );
