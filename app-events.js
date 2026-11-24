@@ -268,27 +268,33 @@ document.addEventListener('click', function (e) {
     return;
   }
   if (act === 'tm-disconnect') {
+    if (tmSupportedNative()) { tmNativeCall('disconnect'); }
     tmDisconnect();
     tmRefresh();
     return;
   }
   if (act === 'tm-apply') {
+    if (tmSupportedNative()) { tmNativeCall(el.dataset.field); return; }
     tmApply(el.dataset.field);
     return;
   }
   if (act === 'tm-start') {
+    if (tmSupportedNative()) { tmNativeCall('start'); return; }
     tmStart();
     return;
   }
   if (act === 'tm-pause') {
+    if (tmSupportedNative()) { tmNativeCall('pause'); return; }
     tmPause();
     return;
   }
   if (act === 'tm-resume') {
+    if (tmSupportedNative()) { tmNativeCall('resume'); return; }
     tmResume();
     return;
   }
   if (act === 'tm-stop') {
+    if (tmSupportedNative()) { tmNativeCall('stop'); }
     tmStop();
     return;
   }

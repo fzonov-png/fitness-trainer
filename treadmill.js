@@ -9,9 +9,7 @@
    Resistance Level, Start/Resume, Stop/Pause, Reset. Ответы через уведомления.
    ============================================================================ */
 
-const TM_UUID = (n) => '0000' + n.toString(16).padStart(4, '0') + '-0000-1000-8000-00805f9b34fb';
-
-const TM_OPS = { REQUEST_CONTROL: 0x00, RESET: 0x01, SET_SPEED: 0x02, SET_INCLINE: 0x03, SET_RESISTANCE: 0x04, START: 0x07, STOP: 0x08, RESP_CODE: 0x80 };
+const TM_UUID = (n) => '0000' + n.toString(16).padStart(4, '0') + '-0000-1000-8000-00805f9b34fb';const TM_OPS = { REQUEST_CONTROL: 0x00, RESET: 0x01, SET_SPEED: 0x02, SET_INCLINE: 0x03, SET_RESISTANCE: 0x04, START: 0x07, STOP: 0x08, RESP_CODE: 0x80 };
 const TM_RES_OK = 0x01;
 const TM_RES_BAD = { 2: 'операция не поддерживается', 3: 'неверный параметр', 4: 'операция не выполнена', 5: 'нет контроля' };
 
@@ -39,8 +37,35 @@ let TM = tmInit();
 
 /* --------------------------------- утилиты -------------------------------- */
 
+function tmSupportedNative() {
+  return !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform() && window.Capacitor.Plugins && window.Capacitor.Plugins.Treadmill);
+}
+
 function tmSupported() {
+  if (tmSupportedNative()) return true;
   return !!(window.navigator && window.navigator.bluetooth && window.navigator.bluetooth.requestDevice);
+}
+
+async function tmNativeCall(method, arg) {
+  const p = (window.Capacitor && window.Capacitor.Plugins) ? window.Capacitor.Plugins.Treadmill : null;
+  if (!p || !p[method]) return null;
+  const r = await p[method](arg);
+  return r;
+}
+
+function tmNativeMetricsHandler(ev) {
+  const m = (ev && ev.metrics) ? ev.metrics : (ev || {});
+  tmOnSample(m);
+  if (TM.rec && TM.rec.active) tmAccumulate(m, Date.now());
+  tmPaintMetrics();
+}
+
+function tmNativeInit() {
+  const p = (window.Capacitor && window.Capacitor.Plugins) ? window.Capacitor.Plugins.Treadmill : null;
+  if (!p || !p.addListener) return;
+  try {
+    p.addListener('metrics', tmNativeMetricsHandler);
+  } catch (e) {}
 }
 
 function tmHex(bytes) {
@@ -237,8 +262,24 @@ function tmTotals(n) {
 /* ------------------------------ BLE: подключение --------------------------- */
 
 async function tmConnect() {
-  if (!tmSupported()) { TM.status = 'unsupported'; tmRefresh(); return; }
   if (TM.status === 'connecting' || TM.status === 'binding') return;
+  if (tmSupportedNative()) {
+    TM.status = 'connecting';
+    TM.error = '';
+    tmRefresh();
+    try {
+      const r = await tmNativeCall('connect');
+      TM.status = 'ready';
+      if (r && r.name) TM.deviceName = r.name;
+      tmRefresh();
+    } catch (err) {
+      TM.status = 'error';
+      TM.error = (err && err.message) ? err.message : String(err);
+      tmRefresh();
+    }
+    return;
+  }
+  if (!tmSupported()) { TM.status = 'unsupported'; tmRefresh(); return; }
   TM.status = 'connecting';
   TM.error = '';
   tmStopNotifs();

@@ -85,6 +85,33 @@ gh api -X POST repos/fzonov-png/fitness-trainer/pages \
   -f "source[branch]=main" -f "source[path]=/"
 ```
 
+## Нативная iOS-обёртка (Capacitor + CoreBluetooth) — чтобы Bluetooth-треначок работал на iPhone
+
+Web Bluetooth в iOS (Safari / WebKit) **не реализован**, поэтому для полноценной работы на iPhone нужна нативная обёртка.
+
+Что уже сделано в коде:
+
+- `treadmill.js` определяет нативный путь: `tmSupportedNative()` (Capacitor → плагин `TreadmillBle`) → `tmConnect`, `tmApply`, `tmStart/Pause/Stop`, `tmDisconnect`, слушатель событий `metrics`;
+- нативный путь приоритетнее Web Bluetooth; если Capacitor-плагин недоступен — приложение падает на Web Bluetooth (Android/Chrome) или ручной ввод (iOS Safari).
+
+Исходники нативной стороны:
+
+- `ios/App/App/Plugins/TreadmillBle/TreadmillBlePlugin.swift` — Capacitor-плагин на CoreBluetooth: скан/подключение к FTMS (0x1826), Treadmill Data (0x2ACD) / Rower (0x2AD1) / Indoor Bike (0x2AD2) / Cross Trainer (0x2ACE), Control Point (0x2AD9), события `metrics`;
+- `ios/App/capacitor.config.json`, `ios/App/App/Info.plist` (NSBluetoothAlwaysUsageDescription / NSBluetoothPeripheralUsageDescription), `ios/App/App/AppDelegate.swift`.
+
+Дальше (на Mac с Xcode):
+
+```bash
+npm i @capacitor/cli @capacitor/core @capacitor/ios
+npx cap add ios
+npx cap sync ios
+npx cap open ios
+```
+
+и в Xcode собрать Runner с подключённым плагином TreadmillBle.
+
+Сборка требует macOS + Xcode; сам репозиторий редактируется здесь на Windows, поэтому Xcode-проект (`ios/App/App/Runner.xcodeproj`) создаётся нативно через Capacitor и не храним вручную.
+
 ## Установка на телефон
 
 - **iPhone (Safari):** открыть ссылку → «Поделиться» → «На экран Домой».

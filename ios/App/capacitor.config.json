@@ -1,0 +1,13 @@
+{
+  "appId": "com.fzonov.fitnesstrainer",
+  "appName": "Fitness Trainer",
+  "webDir": "ios/App/App",
+  "server": {
+    "cleartext": true
+  },
+  "plugins": {
+    "TreadmillBle": {
+      "enabled": true
+    }
+  }
+}
