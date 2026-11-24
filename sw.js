@@ -1,11 +1,12 @@
 /* Офлайн-кеш приложения. После обновления файлов поменяй версию CACHE. */
-const CACHE = 't41-v13';
+const CACHE = 't41-v14';
 const ASSETS = [
   './',
   './index.html',
   './styles.css',
   './program.js',
   './app.js',
+  './treadmill.js',
   './views-today.js',
   './views-more.js',
   './views-guide.js',

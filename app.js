@@ -53,7 +53,8 @@ function defaults() {
     readiness: {},
     tests: [],
     last: {},
-    settings: { sound: true, rest: 90, nutri: { activity: 1.75, deficit: 0.2 } },
+    treadmill: [],
+    settings: { sound: true, rest: 90, nutri: { activity: 1.75, deficit: 0.2 }, tm: { speed: 6, incline: 0, resistance: 5 } },
     createdAt: todayISO()
   };
 }
@@ -70,6 +71,7 @@ function loadState() {
     merged.times = Object.assign({ morning: '05:30', evening: '21:20' }, s.times || {});
     merged.settings = Object.assign(defaults().settings, s.settings || {});
     merged.settings.nutri = Object.assign({ activity: 1.75, deficit: 0.2 }, (s.settings || {}).nutri || {});
+    merged.settings.tm = Object.assign({ speed: 6, incline: 0, resistance: 5 }, (s.settings || {}).tm || {});
     return merged;
   } catch (e) {
     return base;
@@ -892,6 +894,8 @@ function importData(file) {
       next.times = Object.assign({ morning: '05:30', evening: '21:20' }, data.times || {});
       next.settings = Object.assign(defaults().settings, data.settings || {});
       next.settings.nutri = Object.assign({ activity: 1.75, deficit: 0.2 }, (data.settings || {}).nutri || {});
+      next.settings.tm = Object.assign({ speed: 6, incline: 0, resistance: 5 }, (data.settings || {}).tm || {});
+      next.treadmill = data.treadmill || [];
       setState(next);
       ui.date = todayISO();
       ui.week = clamp(infoFor(ui.date).rawWeek, 1, P.WEEK_COUNT);

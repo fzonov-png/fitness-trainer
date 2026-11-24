@@ -178,6 +178,24 @@ function renderProgress() {
     '</section>' +
 
     '<section class="card">' +
+      '<div class="card__head"><h2>Треначок: результаты</h2><span class="kicker">БД · Bluetooth</span></div>' +
+      ((state.treadmill || []).length
+        ? '<div class="tm-totals">' +
+            '<div class="tile"><span>Тренировок</span><b>' + tmTotals(30).n + '</b><i>за 30 дней</i></div>' +
+            '<div class="tile"><span>Пройдено</span><b>' + (Math.round((tmTotals(30).meters || 0) / 1000 * 10) / 10) + ' <small>км</small></b><i>в сумме за 30 дней</i></div>' +
+            '<div class="tile"><span>Лучший</span><b>' + (tmTotals(30).best ? Number(tmTotals(30).best.avgSpeed).toFixed(1) : '—') + ' <small>км/ч</small></b><i>по последней тренировке</i></div>' +
+            '<div class="tile"><span>Ккал</span><b>' + tmTotals(30).kcal + '</b><i>оценка</i></div>' +
+          '</div>' +
+          '<table class="tests"><thead><tr><th>Дата</th><th>Время</th><th>мин</th><th>км</th><th>км/ч</th><th>ккал</th></tr></thead><tbody>' +
+            (state.treadmill.slice().sort((a, b) => String(b.date) < String(a.date) ? 1 : -1).slice(0, 10).map((x) => (
+              '<tr><td>' + esc(fmtDate(x.date)) + '</td><td>' + esc((new Date(x.startAt) || new Date()).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })) + '</td><td>' + esc(String(Math.round((Number(x.seconds) || 0) / 60))) + '</td><td>' + esc(String(Math.round((Number(x.meters) || 0) / 1000 * 10) / 10)) + '</td><td>' + esc(String(Number(x.avgSpeed || 0)).replace('.', ',')) + '</td><td>' + esc(String(Math.round(x.kcal || 0))) + '</td></tr>'
+            )).join('')) +
+          '</tbody></table>' +
+          '<p class="hint">История треначков живёт в этом браузере. После каждого стопа результат сохраняется сюда автоматически; если тренировка была короче 20 минут или без дистанции — она не записывается.</p>'
+        : '<p class="hint">Пока нет записей: подключи треначок в «Сегодня → Треначок · Bluetooth» и сохрани результат после «Стопа».</p>') +
+    '</section>' +
+
+    '<section class="card">' +
       '<div class="card__head"><h2>Тесты</h2><span class="kicker">недели 1, 6, 12</span></div>' +
       '<div class="testform">' +
         '<label>Подтягивания, раз<input id="t-pullups" type="number" inputmode="numeric" min="0" step="1" value="' + (lastT ? esc(lastT.pullups || '') : '') + '"></label>' +

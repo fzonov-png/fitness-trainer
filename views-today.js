@@ -244,6 +244,10 @@ function renderToday() {
     (isToday ? renderReadiness() : '') +
     (isToday ? renderDailyWeight() : '') +
     renderNutritionToday() +
+    '<section class="card tm" id="tm-card">' +
+      '<div class="card__head"><h2>Треначок · Bluetooth</h2><span class="kicker">FTMS</span></div>' +
+      '<div id="tm-body"><div class="tm-note">Подключение треначка…</div></div>' +
+    '</section>' +
     '<div class="focus"><span>Фокус недели</span>' + esc(meta.focus) + '</div>' +
     renderSessionCard(plan.morning, ui.date, 'morning', logM) +
     renderSessionCard(plan.evening, ui.date, 'evening', logE) +

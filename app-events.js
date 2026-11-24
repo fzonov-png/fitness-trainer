@@ -24,6 +24,8 @@ function render() {
   else if (ui.tab === 'guide') html = renderGuide();
   else html = renderToday();
   view.innerHTML = html;
+  const tmHost = document.getElementById('tm-body');
+  if (tmHost) tmRefresh();
   if (exTimer) markRowTiming();
   document.querySelectorAll('#tabs [data-tab]').forEach((b) => {
     b.classList.toggle('is-active', b.dataset.tab === ui.tab);
@@ -261,6 +263,47 @@ document.addEventListener('click', function (e) {
     closeExercise();
     return;
   }
+  if (act === 'tm-connect') {
+    tmConnect().then(function () { tmRefresh(); });
+    return;
+  }
+  if (act === 'tm-disconnect') {
+    tmDisconnect();
+    tmRefresh();
+    return;
+  }
+  if (act === 'tm-apply') {
+    tmApply(el.dataset.field);
+    return;
+  }
+  if (act === 'tm-start') {
+    tmStart();
+    return;
+  }
+  if (act === 'tm-pause') {
+    tmPause();
+    return;
+  }
+  if (act === 'tm-resume') {
+    tmResume();
+    return;
+  }
+  if (act === 'tm-stop') {
+    tmStop();
+    return;
+  }
+  if (act === 'tm-save-manual') {
+    tmSaveManual();
+    return;
+  }
+  if (act === 'tm-delete') {
+    tmDeleteEntry(el.dataset.id);
+    return;
+  }
+  if (act === 'tm-log-copy') {
+    tmCopyLog();
+    return;
+  }
   if (act === 'export') {
     exportData();
     return;
@@ -319,6 +362,10 @@ document.addEventListener('input', function (e) {
     entry[el.dataset.ifield] = el.value;
     rememberLast(el.dataset.ex, dateISO, slot, entry);
     save();
+  }
+  if (el.hasAttribute && el.hasAttribute('data-tm-field')) {
+    tmSetTarget(el.dataset.tmField, el.value);
+    return;
   }
 });
 
