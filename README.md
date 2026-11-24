@@ -97,7 +97,9 @@ Web Bluetooth в iOS (Safari / WebKit) **не реализован**, поэто
 Исходники нативной стороны:
 
 - `ios/App/App/Plugins/TreadmillBle/TreadmillBlePlugin.swift` — Capacitor-плагин на CoreBluetooth: скан/подключение к FTMS (0x1826), Treadmill Data (0x2ACD) / Rower (0x2AD1) / Indoor Bike (0x2AD2) / Cross Trainer (0x2ACE), Control Point (0x2AD9), события `metrics`;
-- `ios/App/capacitor.config.json`, `ios/App/App/Info.plist` (NSBluetoothAlwaysUsageDescription / NSBluetoothPeripheralUsageDescription), `ios/App/App/AppDelegate.swift`.
+- `ios/App/capacitor.config.json`, `ios/App/App/Info.plist` (NSBluetoothAlwaysUsageDescription / NSBluetoothPeripheralUsageDescription), `ios/App/App/AppDelegate.swift`;
+- `ios/BUILD_TEMPLATE/` — шаблон для копирования в Xcode-проект;
+- `docs/ios-build.md` — пошаговая документация по сборке.
 
 Дальше (на Mac с Xcode):
 
