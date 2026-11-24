@@ -34,36 +34,63 @@ public class TreadmillBlePlugin: CAPPlugin, CBCentralManagerDelegate {
     private static let heartRateServiceUUID: CBUUID = CBUUID(string: "0000180D-0000-1000-8000-00805F9B34FB")!
     private static let heartRateCharUUID: CBUUID = CBUUID(string: "00002A37-0000-1000-8000-00805F9B34FB")!
 
+    // MARK: State
+
     private var centralManager: CBCentralManager!
     private var peripheral: CBPeripheral?
     private var peripheralDelegate: TreadmillPeripheralDelegate?
 
-    /** Текущий тип машины: treadmill | rower | indoorbike | cross */
-    private var machine: String = "treadmill"
-
-    private var controlPointChar: CBCharacteristic?
     private var treadmillChar: CBCharacteristic?
+    private var controlPointChar: CBCharacteristic?
     private var heartRateChar: CBCharacteristic?
+
+    private var machine: String = "treadmill"
 
     private var eventSink: CAPEventSink?
     private var connectContinuation: ((String?) -> Void)?
+    private var commandContinuation: ((String) -> Void)?
 
     override public init() {
         super.init()
         centralManager = CBCentralManager(delegate: self, queue: nil)
     }
 
-    // MARK: - EventEmitter
+    // MARK: - Events
 
     private func publishEvent(name: String, data: [String: Any]) {
         eventSink?.emit(name: name, data: data)
     }
 
-    private func emitMetrics(_ m: [String: Any]) {
-        publishEvent(name: "metrics", data: ["metrics": m])
+    private func emitMetrics(_ metrics: [String: Any]) {
+        publishEvent(name: "metrics", data: ["metrics": metrics])
     }
 
-    // MARK:: - CBCentralManagerDelegate
+    // MARK: - Helpers
+
+    private func startCommand(_ op: UInt8, _ param: Int16) {
+        var data = [UInt8](repeating: 0, count: 3)
+        data[0] = op
+        data[1] = UInt8(bitPattern: param & 0xFF)
+        data[2] = UInt8(bitPattern: (param >> 8) & 0xFF)
+        controlPointChar?.writeValue(withResponse: true)
+    }
+
+    private func failPendingConnect() {
+        connectContinuation?(nil)
+        connectContinuation = nil
+    }
+
+    private func resolvePendingConnect(_ name: String?) {
+        connectContinuation?(name)
+        connectContinuation = nil
+    }
+
+    private func finishCommand(_ message: String) {
+        commandContinuation?(message)
+        commandContinuation = nil
+    }
+
+    // MARK: - CBCentralManagerDelegate
 
     public func centralManagerDidUpdateState(_ centralManager: CBCentralManager) {
         if centralManager.state == .poweredOn {
@@ -78,23 +105,22 @@ public class TreadmillBlePlugin: CAPPlugin, CBCentralManagerDelegate {
     public func centralManager(_ centralManager: CBCentralManager, didFailToConnect peripheral: CBPeripheral, error: Error) {
         if peripheral.isEqual(self.peripheral) {
             self.peripheral = nil
-            connectContinuation?(nil)
-            connectContinuation = nil
+            failPendingConnect()
         }
     }
 
     public func centralManager(_ centralManager: CBCentralManager, didDisconnectPeripheral peripheral: CBPeripheral, error: Error) {
         if peripheral.isEqual(self.peripheral) {
             self.peripheral = nil
-            connectContinuation?(nil)
-            connectContinuation = nil
+            failPendingConnect()
         }
     }
 
-    // MARK:: - CAPPlugin actions
+    // MARK: - Actions
 
     @objc func connect(_ call: CAPPluginCall) {
         if let p = peripheral, p.state == .connected {
+            resolvePendingConnect(p.name)
             call.resolve(["name": p.name ?? "Treadmill"] as [String: Any])
             return
         }
@@ -118,48 +144,45 @@ public class TreadmillBlePlugin: CAPPlugin, CBCentralManagerDelegate {
     }
 
     @objc func setSpeed(_ call: CAPPluginCall, value: Double) {
-        sendControl(op: 0x02, param: Int16(bitPattern: Int16(value * 100))) // UINT16 LE, 0.01 км/ч
+        startCommand(0x02, Int16(bitPattern: Int16(value * 100)))
+        finishCommand("ok")
         call.resolve([:] as [String: Any])
     }
 
     @objc func setInclination(_ call: CAPPluginCall, value: Double) {
-        sendControl(op: 0x03, param: Int16(bitPattern: Int16(value * 10))) // SINT16 LE, 0.1 %
+        startCommand(0x03, Int16(bitPattern: Int16(value * 10)))
+        finishCommand("ok")
         call.resolve([:] as [String: Any])
     }
 
     @objc func setResistance(_ call: CAPPluginCall, value: Double) {
-        sendControl(op: 0x04, param: Int16(bitPattern: Int16(value * 10))) // UINT16 LE, уровень * 10
+        startCommand(0x04, Int16(bitPattern: Int16(value * 10)))
+        finishCommand("ok")
         call.resolve([:] as [String: Any])
     }
 
     @objc func start(_ call: CAPPluginCall) {
-        sendControl(op: 0x07, param: 0) // Start/Resume
+        startCommand(0x07, 0)
+        finishCommand("ok")
         call.resolve([:] as [String: Any])
     }
 
     @objc func pause(_ call: CAPPluginCall) {
-        sendControl(op: 0x08, param: 0x02) // Stop/Pause = 0x02
+        startCommand(0x08, 0x02)
+        finishCommand("ok")
         call.resolve([:] as [String: Any])
     }
 
     @objc func stop(_ call: CAPPluginCall) {
-        sendControl(op: 0x08, param: 0x01) // Stop/Pause = 0x01
+        startCommand(0x08, 0x01)
+        finishCommand("ok")
         call.resolve([:] as [String: Any])
-    }
-
-    private func sendControl(op: UInt8, param: Int16) {
-        guard let char = controlPointChar else { return }
-        var data = [UInt8](repeating: 0, count: 3)
-        data[0] = op
-        data[1] = UInt8(bitPattern: param & 0xFF)
-        data[2] = UInt8(bitPattern: (param >> 8) & 0xFF)
-        char.writeValue(withResponse: true)
     }
 }
 
 /**
- * Delegate конкретного подключённого peripheral: подписка на FTMS-статус,
- * контроль над подключением (promise) и сбор метрик.
+ * Delegate подключённого peripheral: подписка на характеристики, сбор метрик,
+ * ответы на команды Control Point.
  */
 private class TreadmillPeripheralDelegate: NSObject, CBPeripheralDelegate {
 
@@ -169,7 +192,6 @@ private class TreadmillPeripheralDelegate: NSObject, CBPeripheralDelegate {
     var controlPointChar: CBCharacteristic?
     var heartRateChar: CBCharacteristic?
     var machine: String = "treadmill"
-    var onConnected: (() -> Void)?
 
     override init() {
         super.init()
@@ -191,7 +213,6 @@ private class TreadmillPeripheralDelegate: NSObject, CBPeripheralDelegate {
             return
         }
         var foundTreadmill = false
-        var foundControl = false
         for c in chars where c.UUID == TreadmillBlePlugin.treadmillDataUUID {
             treadmillChar = c
             peripheral.setNotifyValue(c, for: peripheral)
@@ -200,14 +221,13 @@ private class TreadmillPeripheralDelegate: NSObject, CBPeripheralDelegate {
         for c in chars where c.UUID == TreadmillBlePlugin.controlPointUUID {
             controlPointChar = c
             peripheral.setNotifyValue(c, for: peripheral)
-            foundControl = true
         }
         for c in chars where c.UUID == TreadmillBlePlugin.heartRateCharUUID {
             heartRateChar = c
             peripheral.setNotifyValue(c, for: peripheral)
         }
         if foundTreadmill {
-            self.machine = "treadmill"
+            machine = "treadmill"
         } else if let rower = chars.first(where: { $0.UUID == TreadmillBlePlugin.rowerDataUUID }) {
             treadmillChar = rower
             peripheral.setNotifyValue(rower, for: peripheral)
@@ -221,26 +241,153 @@ private class TreadmillPeripheralDelegate: NSObject, CBPeripheralDelegate {
             peripheral.setNotifyValue(cross, for: peripheral)
             machine = "cross"
         }
-        plugin?.resolvePendingConnect()
+        plugin?.resolvePendingConnect(peripheral.name)
     }
 
     func peripheral(_ peripheral: CBPeripheral, didUpdateValueFor characteristic: CBCharacteristic, error: Error?) {
         if characteristic == treadmillChar {
-            // TODO: декодировать значение по флагам и emitMetrics
+            if let data = characteristic.value {
+                let metrics = TreadmillBlePlugin.decodeMetrics(data: data, machine: machine)
+                plugin?.emitMetrics(metrics)
+            }
         }
-        if characteristic == heartRateChar {
-            // TODO: обновить пульс
+        if characteristic == controlPointChar, let data = characteristic.value, data.count > 0, data[0] == 0x80 {
+            // ответ на команду: опкод 0x80, запрос, результат
+            let result = data.count > 2 ? data[2] : 0
+            if result == 0x01 {
+                plugin?.finishCommand("ok")
+            } else {
+                plugin?.finishCommand("fail")
+            }
+        }
+        if characteristic == heartRateChar, let data = characteristic.value, data.count > 1 {
+            let hr = UInt16(data[1]) | (UInt16(data[2]) << 8)
+            plugin?.emitMetrics(["hr": hr, "source": "heartrate"] as [String: Any])
         }
     }
-}
 
-extension TreadmillBlePlugin {
-    func failPendingConnect() {
-        connectContinuation?(nil)
-        connectContinuation = nil
-    }
-    func resolvePendingConnect() {
-        connectContinuation?(nil)
-        connectContinuation = nil
+    private static func decodeMetrics(data: Data, machine: String) -> [String: Any] {
+        var m: [String: Any] = [:]
+        guard data.count >= 2 else { return m }
+        let flags = UInt16(data[0]) | (UInt16(data[1]) << 8)
+        var o = 2
+        if machine == "treadmill" {
+            if flags & 0x0001 == 0 {
+                let speedRaw = UInt16(data[o]) | (UInt16(data[o + 1]) << 8)
+                m["speed"] = Double(speedRaw) * 0.01
+                o += 2
+            }
+            if flags & 0x0002 != 0 { o += 2 }
+            if flags & 0x0004 != 0 {
+                let dist = UInt32(data[o]) | (UInt32(data[o + 1]) << 8) | (UInt32(data[o + 2]) << 16)
+                m["distance"] = Double(dist)
+                o += 3
+            }
+            if flags & 0x0008 != 0 {
+                let inclRaw = Int16(bitPattern: UInt16(data[o]) | (UInt16(data[o + 1]) << 8))
+                m["incline"] = Double(inclRaw) * 0.1
+                o += 4
+            }
+            if flags & 0x0080 != 0 {
+                let kcal = UInt16(data[o]) | (UInt16(data[o + 1]) << 8)
+                m["kcal"] = Double(kcal)
+                o += 5
+            }
+            if flags & 0x0100 != 0 {
+                m["hr"] = Double(data[o])
+                o += 1
+            }
+            if flags & 0x0400 != 0 {
+                let elapsed = UInt16(data[o]) | (UInt16(data[o + 1]) << 8)
+                m["elapsed"] = Double(elapsed)
+                o += 2
+            }
+        } else if machine == "rower" {
+            if flags & 0x0001 == 0 {
+                m["stroke"] = Double(data[o])
+                m["strokeCount"] = Double(UInt16(data[o + 1]) | (UInt16(data[o + 2]) << 8))
+                o += 3
+            }
+            if flags & 0x0002 != 0 { o += 1 }
+            if flags & 0x0004 != 0 {
+                let dist = UInt32(data[o]) | (UInt32(data[o + 1]) << 8) | (UInt32(data[o + 2]) << 16)
+                m["distance"] = Double(dist)
+                o += 3
+            }
+            if flags & 0x0020 != 0 { m["power"] = Double(Int16(bitPattern: UInt16(data[o]) | (UInt16(data[o + 1]) << 8))); o += 2 }
+            if flags & 0x0080 != 0 {
+                m["resistance"] = Double(data[o])
+                o += 1
+            }
+            if flags & 0x0100 != 0 {
+                let kcal = UInt16(data[o]) | (UInt16(data[o + 1]) << 8)
+                m["kcal"] = Double(kcal)
+                o += 5
+            }
+            if flags & 0x0200 != 0 { m["hr"] = Double(data[o]); o += 1 }
+            if flags & 0x0400 != 0 {
+                let elapsed = UInt16(data[o]) | (UInt16(data[o + 1]) << 8)
+                m["elapsed"] = Double(elapsed)
+                o += 2
+            }
+        } else if machine == "indoorbike" {
+            if flags & 0x0001 == 0 {
+                let speedRaw = UInt16(data[o]) | (UInt16(data[o + 1]) << 8)
+                m["speed"] = Double(speedRaw) * 0.01
+                o += 2
+            }
+            if flags & 0x0002 != 0 { o += 2 }
+            if flags & 0x0004 != 0 {
+                m["cadence"] = Double(UInt16(data[o]) | (UInt16(data[o + 1]) << 8)) * 0.5
+                o += 2
+            }
+            if flags & 0x0010 != 0 {
+                let dist = UInt32(data[o]) | (UInt32(data[o + 1]) << 8) | (UInt32(data[o + 2]) << 16)
+                m["distance"] = Double(dist)
+                o += 3
+            }
+            if flags & 0x0020 != 0 { m["resistance"] = Double(Int16(bitPattern: UInt16(data[o]) | (UInt16(data[o + 1]) << 8))); o += 2 }
+            if flags & 0x0040 != 0 { m["power"] = Double(Int16(bitPattern: UInt16(data[o]) | (UInt16(data[o + 1]) << 8))); o += 2 }
+            if flags & 0x0100 != 0 {
+                let kcal = UInt16(data[o]) | (UInt16(data[o + 1]) << 8)
+                m["kcal"] = Double(kcal)
+                o += 5
+            }
+            if flags & 0x0200 != 0 { m["hr"] = Double(data[o]); o += 1 }
+            if flags & 0x0400 != 0 {
+                let elapsed = UInt16(data[o]) | (UInt16(data[o + 1]) << 8)
+                m["elapsed"] = Double(elapsed)
+                o += 2
+            }
+        } else if machine == "cross" {
+            if flags & 0x0001 == 0 {
+                let speedRaw = UInt16(data[o]) | (UInt16(data[o + 1]) << 8)
+                m["speed"] = Double(speedRaw) * 0.01
+                o += 2
+            }
+            if flags & 0x0002 != 0 { o += 2 }
+            if flags & 0x0004 != 0 {
+                let dist = UInt32(data[o]) | (UInt32(data[o + 1]) << 8) | (UInt32(data[o + 2]) << 16)
+                m["distance"] = Double(dist)
+                o += 3
+            }
+            if flags & 0x0040 != 0 {
+                let inclRaw = Int16(bitPattern: UInt16(data[o]) | (UInt16(data[o + 1]) << 8))
+                m["incline"] = Double(inclRaw) * 0.1
+                o += 4
+            }
+            if flags & 0x0400 != 0 {
+                let kcal = UInt16(data[o]) | (UInt16(data[o + 1]) << 8)
+                m["kcal"] = Double(kcal)
+                o += 5
+            }
+            if flags & 0x0800 != 0 { m["hr"] = Double(data[o]); o += 1 }
+            if flags & 0x2000 != 0 {
+                let elapsed = UInt16(data[o]) | (UInt16(data[o + 1]) << 8)
+                m["elapsed"] = Double(elapsed)
+                o += 2
+            }
+        }
+        return m;
     }
 }
